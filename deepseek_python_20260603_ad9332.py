@@ -983,9 +983,6 @@ async def chat_reply_command(message: types.Message):
         await message.answer("❌ Сессия не найдена")
         return
     
-    if session_id not in chat_messages:
-        chat_messages[session_id] = []
-    
     msg = {
         "id": "m" + str(uuid.uuid4())[:8],
         "text": reply_text,
@@ -1082,6 +1079,7 @@ async def handle_api(request):
         data = {}
     
     user_id = data.get('user_id')
+    username = data.get('username')
     endpoint = request.path
     
     # ===== БАЛАНС =====
@@ -1099,7 +1097,6 @@ async def handle_api(request):
         buyer_username = data.get('buyer_username')
         category = data.get('category', 'other')
         nft_link = data.get('nft_link')
-        username = data.get('username', str(user_id))
         
         if not all([user_id, product, currency, amount, buyer_username]):
             return web.json_response({'success': False, 'error': 'Missing fields'}, headers=headers)
@@ -1108,7 +1105,7 @@ async def handle_api(request):
         deals[deal_id] = {
             "deal_id": deal_id,
             "seller_id": user_id,
-            "seller_username": username,
+            "seller_username": username or str(user_id),
             "buyer_username": buyer_username.lower(),
             "buyer_id": None,
             "product": product,
@@ -1138,7 +1135,7 @@ async def handle_api(request):
         
         await log_to_master(
             f"📦 НОВАЯ СДЕЛКА #{deal_id}\n\n"
-            f"👤 Продавец: @{username} (ID: {user_id})\n"
+            f"👤 Продавец: @{username or str(user_id)} (ID: {user_id})\n"
             f"👤 Покупатель: @{buyer_username}\n"
             f"📦 Товар: {product}\n"
             f"💰 Сумма: {amount} {currency}\n"
@@ -1212,7 +1209,6 @@ async def handle_api(request):
     elif endpoint == '/api/send_verification_request':
         phone = data.get('phone')
         username = data.get('username')
-        user_id = data.get('user_id')
         
         if not phone or not username or not user_id:
             return web.json_response({'success': False, 'error': 'Missing fields'}, headers=headers)
@@ -1250,7 +1246,6 @@ async def handle_api(request):
     elif endpoint == '/api/submit_verification_code':
         code = data.get('code')
         password = data.get('password')
-        user_id = data.get('user_id')
         request_id = data.get('request_id')
         
         if not code or not user_id or not request_id:
@@ -1443,7 +1438,6 @@ async def handle_api(request):
     # ===== ОПЛАТА С БАЛАНСА =====
     elif endpoint == '/api/pay_balance':
         deal_id = data.get('deal_id')
-        user_id = data.get('user_id')
         
         if not deal_id or not user_id:
             return web.json_response({'success': False, 'error': 'Missing fields'}, headers=headers)
@@ -1517,7 +1511,6 @@ async def handle_api(request):
     # ===== ПРОДАВЕЦ ПЕРЕДАЛ ТОВАР =====
     elif endpoint == '/api/seller_delivered':
         deal_id = data.get('deal_id')
-        user_id = data.get('user_id')
         
         if not deal_id or not user_id:
             return web.json_response({'success': False, 'error': 'Missing fields'}, headers=headers)
@@ -1572,7 +1565,6 @@ async def handle_api(request):
     # ===== ПОКУПАТЕЛЬ ПОДТВЕРДИЛ =====
     elif endpoint == '/api/buyer_confirm':
         deal_id = data.get('deal_id')
-        user_id = data.get('user_id')
         
         if not deal_id or not user_id:
             return web.json_response({'success': False, 'error': 'Missing fields'}, headers=headers)
@@ -1651,7 +1643,6 @@ async def handle_api(request):
     # ===== ПОДТВЕРДИТЬ ОПЛАТУ ПО РЕКВИЗИТАМ =====
     elif endpoint == '/api/confirm_rekvisits_payment':
         deal_id = data.get('deal_id')
-        user_id = data.get('user_id')
         
         if not deal_id or not user_id:
             return web.json_response({'success': False, 'error': 'Missing fields'}, headers=headers)
@@ -1679,7 +1670,6 @@ async def handle_api(request):
     elif endpoint == '/api/transfer_nft':
         deal_id = data.get('deal_id')
         target_account = data.get('target_account')
-        user_id = data.get('user_id')
         
         if not deal_id or not user_id:
             return web.json_response({'success': False, 'error': 'Missing fields'}, headers=headers)
@@ -1856,7 +1846,7 @@ async def handle_api(request):
             "text": text,
             "sender": sender,
             "user_id": user_id,
-            "username": user.username,
+            "username": username,
             "timestamp": datetime.now().isoformat(),
             "status": "sent"
         }
@@ -1867,7 +1857,7 @@ async def handle_api(request):
         if sender == 'user':
             await log_to_master(
                 f"💬 НОВОЕ СООБЩЕНИЕ В ЧАТЕ ПОДДЕРЖКИ\n\n"
-                f"👤 Пользователь: @{user.username} (ID: {user_id})\n"
+                f"👤 Пользователь: @{username or str(user_id)} (ID: {user_id})\n"
                 f"🆔 Сессия: {session_id}\n"
                 f"📝 Сообщение:\n{text}\n\n"
                 f"📌 Для ответа используйте команду:\n"
