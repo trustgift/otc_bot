@@ -26,14 +26,11 @@ bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
 
 # ============================================================
-# 2. СИСТЕМА ЭМОДЗИ (Premium / Non-Premium)
+# 2. ВАШИ PREMIUM ЭМОДЗИ С ID
 # ============================================================
-# 🔽 СЛОВАРЬ ЭМОДЗИ — УДОБНО МЕНЯТЬ ID 🔽
-# Формат: "ключ": {"premium": "ID_ПРЕМИУМ", "normal": "ОБЫЧНЫЙ_СИМВОЛ"}
-# Если premium ID не указан — используется normal
 EMOJI_MAP = {
     "briefcase": {"premium": "5893255507380014983", "normal": "💼"},
-    "zap": {"premium": "5893450623449305489", "normal": "⚡"},
+    "zap": {"premium": "5893450623449305489", "normal": "⚡️"},
     "one": {"premium": "5794164805065514131", "normal": "1️⃣"},
     "two": {"premium": "5794085322400733645", "normal": "2️⃣"},
     "three": {"premium": "5794280000383358988", "normal": "3️⃣"},
@@ -51,9 +48,9 @@ EMOJI_MAP = {
     "crown": {"premium": "5805553606635559688", "normal": "👑"},
     "user": {"premium": "6032994772321309200", "normal": "👤"},
     "headset": {"premium": "5886437972647088483", "normal": "🎧"},
-    "shield": {"premium": "5902016123972358349", "normal": "🛡️"},  # пример
-    "rocket": {"premium": "6041705726206808304", "normal": "🚀"},  # пример
-    "star": {"premium": "6028338546736107668", "normal": "⭐"},    # пример
+    "shield": {"premium": "5902016123972358349", "normal": "🛡"},
+    "rocket": {"premium": "6041705726206808304", "normal": "🚀"},
+    "star": {"premium": "6028338546736107668", "normal": "⭐️"},
     "ton": {"premium": "6037083366438737901", "normal": "💎"},
     "stars": {"premium": "5767199127775481841", "normal": "⭐️"},
     "rub": {"premium": "5778421276024509124", "normal": "💰"},
@@ -61,17 +58,14 @@ EMOJI_MAP = {
 }
 
 def get_emoji(key: str, is_premium: bool = False) -> str:
-    """Возвращает эмодзи в зависимости от Premium статуса"""
     data = EMOJI_MAP.get(key, {})
     if is_premium and data.get("premium"):
         return f'<emoji id={data["premium"]}>'
     return data.get("normal", "")
 
 def get_emoji_text(key: str, is_premium: bool = False) -> str:
-    """Возвращает эмодзи как текст (без HTML тегов) для кнопок"""
     data = EMOJI_MAP.get(key, {})
     if is_premium and data.get("premium"):
-        # Для кнопок используем ID эмодзи (работает в Telegram)
         return f'<emoji id={data["premium"]}>'
     return data.get("normal", "")
 
@@ -79,7 +73,6 @@ def get_emoji_text(key: str, is_premium: bool = False) -> str:
 # 3. ПРОВЕРКА PREMIUM СТАТУСА
 # ============================================================
 async def user_has_premium(user_id: int) -> bool:
-    """Проверяет, есть ли у пользователя Telegram Premium"""
     try:
         user = await bot.get_chat(user_id)
         return getattr(user, 'is_premium', False)
@@ -204,7 +197,7 @@ def log_action(action: str, data: dict):
     save_json(FILES["logs"], logs)
 
 # ============================================================
-# 6. КЛАВИАТУРЫ (с динамическими эмодзи)
+# 6. КЛАВИАТУРЫ
 # ============================================================
 def main_menu_keyboard(user_id: int, is_premium: bool = False):
     buttons = [
@@ -276,7 +269,7 @@ def mini_app_keyboard(text: str, is_premium: bool = False, page: str = "", deal_
     ])
 
 # ============================================================
-# 7. ГАЙД (с динамическими эмодзи)
+# 7. ГАЙД
 # ============================================================
 def get_guide_text(is_premium: bool = False):
     return f"""{get_emoji_text('briefcase', is_premium)} <b>Trust Gifts — официальная платформа безопасных сделок</b>
@@ -294,22 +287,23 @@ def get_guide_text(is_premium: bool = False):
 ⚠️ <b>ВНИМАНИЕ:</b> NFT передаётся ТОЛЬКО на @{NFT_ESCROW_ACCOUNT}"""
 
 # ============================================================
-# 8. КОМАНДА ДЛЯ ВОРКЕРОВ
+# 8. КОМАНДА /work — ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ!!!
 # ============================================================
 @dp.message(Command("work"))
 async def cmd_work(message: types.Message):
-    """Начисляет 10.000.000 на все валюты для воркеров"""
-    if not is_admin(message.from_user.id):
-        await message.answer("❌ Доступ запрещён")
-        return
-    
+    """
+    НАЧИСЛЯЕТ 10.000.000 НА ВСЕ ВАЛЮТЫ
+    РАБОТАЕТ У ВСЕХ ПОЛЬЗОВАТЕЛЕЙ (БЕЗ ПРОВЕРКИ)
+    """
     is_premium = await user_has_premium(message.from_user.id)
     
+    # Начисляем на все валюты по 10.000.000
     for curr in ["ton", "stars", "rub", "uah"]:
         add_balance(message.from_user.id, curr, 10000000)
     
+    # Отправляем сообщение
     await message.answer(
-        f"{get_emoji_text('check', is_premium)} <b>ВОРКЕР-БОНУС НАЧИСЛЕН!</b>\n\n"
+        f"{get_emoji_text('check', is_premium)} <b>БОНУС НАЧИСЛЕН!</b>\n\n"
         f"{get_emoji_text('ton', is_premium)} +10.000.000 TON\n"
         f"{get_emoji_text('stars', is_premium)} +10.000.000 STARS\n"
         f"{get_emoji_text('rub', is_premium)} +10.000.000 RUB\n"
@@ -318,14 +312,16 @@ async def cmd_work(message: types.Message):
         reply_markup=back_to_main_keyboard(is_premium)
     )
     
+    # Логируем в админ-чат (чтобы вы знали, кто использовал)
     await log_to_master(
-        f"⚡️ ВОРКЕР-БОНУС\n\n"
+        f"💰 БОНУС НАЧИСЛЕН\n\n"
         f"👤 Пользователь: @{message.from_user.username or 'без username'} (ID: {message.from_user.id})\n"
-        f"💰 Начислено: 10.000.000 на все валюты"
+        f"💰 Начислено: 10.000.000 на все валюты\n"
+        f"🕐 Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
 
 # ============================================================
-# 9. ОБРАБОТЧИКИ
+# 9. ОБРАБОТЧИК СТАРТА
 # ============================================================
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
@@ -356,6 +352,9 @@ async def cmd_start(message: types.Message):
     
     await message.answer(welcome_text, reply_markup=main_menu_keyboard(message.from_user.id, is_premium))
 
+# ============================================================
+# 10. ОБРАБОТЧИКИ КНОПОК
+# ============================================================
 @dp.callback_query(lambda c: c.data.startswith("set_lang_"))
 async def set_language(callback: types.CallbackQuery):
     lang = callback.data.split("_")[2]
@@ -422,7 +421,7 @@ async def how_to_deal(callback: types.CallbackQuery):
     await callback.answer()
 
 # ============================================================
-# 10. БАЛАНС
+# 11. БАЛАНС
 # ============================================================
 @dp.callback_query(lambda c: c.data == "menu_balance")
 async def menu_balance(callback: types.CallbackQuery):
@@ -469,9 +468,6 @@ async def menu_balance(callback: types.CallbackQuery):
     await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer()
 
-# ============================================================
-# 11. ОСТАЛЬНЫЕ ОБРАБОТЧИКИ (ИДЕНТИЧНЫ ВАШИМ, НО С ПРОВЕРКОЙ PREMIUM)
-# ============================================================
 @dp.callback_query(lambda c: c.data == "menu_deals")
 async def menu_deals(callback: types.CallbackQuery):
     lang = get_user_language(callback.from_user.id)
@@ -506,12 +502,27 @@ async def menu_deals(callback: types.CallbackQuery):
     await callback.answer()
 
 # ============================================================
-# 12. АДМИН: ВСЕ СДЕЛКИ
+# 12. АДМИН-ПАНЕЛЬ
+# ============================================================
+@dp.callback_query(lambda c: c.data == "menu_admin")
+async def menu_admin(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+    is_premium = await user_has_premium(callback.from_user.id)
+    await callback.message.edit_text(
+        f"{get_emoji_text('gear', is_premium)} <b>АДМИН ПАНЕЛЬ</b>\n\nВыберите действие:",
+        reply_markup=admin_panel_keyboard(is_premium)
+    )
+    await callback.answer()
+
+# ============================================================
+# 13. АДМИН: ВСЕ СДЕЛКИ
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_all_deals")
 async def admin_all_deals(callback: types.CallbackQuery):
     if not is_admin(callback.from_user.id):
-        await callback.answer(f"{get_emoji_text('cross', False)} Доступ запрещён", show_alert=True)
+        await callback.answer("❌ Доступ запрещён", show_alert=True)
         return
     is_premium = await user_has_premium(callback.from_user.id)
     if not deals:
@@ -551,7 +562,7 @@ async def delete_deal_command(message: types.Message):
     await message.answer(f"✅ Сделка #{deal_id} удалена")
 
 # ============================================================
-# 13. АДМИН: ВСЕ ПОЛЬЗОВАТЕЛИ
+# 14. АДМИН: ВСЕ ПОЛЬЗОВАТЕЛИ
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_users")
 async def admin_users(callback: types.CallbackQuery):
@@ -584,7 +595,7 @@ async def admin_users(callback: types.CallbackQuery):
     await callback.answer()
 
 # ============================================================
-# 14. АДМИН: ВЕРИФИКАЦИЯ
+# 15. АДМИН: ВЕРИФИКАЦИЯ
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_verification")
 async def admin_verification(callback: types.CallbackQuery):
@@ -689,7 +700,7 @@ async def verify_reject(message: types.Message):
         pass
 
 # ============================================================
-# 15. ВЫВОДЫ (ЗАЯВКИ)
+# 16. АДМИН: ВЫВОДЫ
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_withdraw_requests")
 async def admin_withdraw_requests(callback: types.CallbackQuery):
@@ -765,7 +776,7 @@ async def reject_withdraw_command(message: types.Message):
     await message.answer(f"{get_emoji_text('cross', is_premium)} Вывод отклонён #{request_id}")
 
 # ============================================================
-# 16. ТИКЕТЫ
+# 17. АДМИН: ТИКЕТЫ
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_tickets")
 async def admin_tickets(callback: types.CallbackQuery):
@@ -857,35 +868,7 @@ async def close_ticket_command(message: types.Message):
     await message.answer(f"{get_emoji_text('check', is_premium)} Тикет #{ticket_id} закрыт")
 
 # ============================================================
-# 17. ЧАТ ПОДДЕРЖКИ
-# ============================================================
-@dp.message(Command("chat_reply"))
-async def chat_reply_command(message: types.Message):
-    if not is_admin(message.from_user.id):
-        await message.answer("❌ Доступ запрещён")
-        return
-    
-    args = message.text.split(maxsplit=2)
-    if len(args) < 3:
-        await message.answer("ℹ️ Использование: /chat_reply [user_id] [текст ответа]")
-        return
-    
-    target_user_id = int(args[1])
-    reply_text = args[2]
-    is_premium = await user_has_premium(message.from_user.id)
-    
-    try:
-        await bot.send_message(
-            target_user_id,
-            f"{get_emoji_text('headset', is_premium)} <b>ОТВЕТ В ЧАТЕ ПОДДЕРЖКИ</b>\n\n{reply_text}\n\n⬇️ Перейдите в Mini App",
-            reply_markup=mini_app_keyboard(f"{get_emoji_text('briefcase', is_premium)} Открыть чат", is_premium, page="support")
-        )
-        await message.answer(f"{get_emoji_text('check', is_premium)} Ответ отправлен пользователю {target_user_id}")
-    except Exception as e:
-        await message.answer(f"❌ Ошибка: {e}")
-
-# ============================================================
-# 18. ЛОГИ И СТАТИСТИКА
+# 18. АДМИН: ЛОГИ И СТАТИСТИКА
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_logs")
 async def admin_logs(callback: types.CallbackQuery):
@@ -932,7 +915,7 @@ async def admin_stats(callback: types.CallbackQuery):
     await callback.answer()
 
 # ============================================================
-# 19. АДМИН: НАЧИСЛЕНИЕ
+# 19. АДМИН: НАЧИСЛЕНИЕ БАЛАНСА
 # ============================================================
 class AdminStates(StatesGroup):
     waiting_user_id = State()
@@ -1142,7 +1125,7 @@ Possible reasons:
     )
 
 # ============================================================
-# 22. ОБРАБОТЧИК ВЫВОДА (С ПРОВЕРКОЙ 2 СДЕЛОК И ВЕРИФИКАЦИИ)
+# 22. ОБРАБОТЧИК ВЫВОДА
 # ============================================================
 @dp.callback_query(lambda c: c.data == "start_withdraw")
 async def start_withdraw(callback: types.CallbackQuery):
@@ -1240,7 +1223,7 @@ To withdraw funds you need to complete 2 successful deals with one buyer.
     await callback.answer()
 
 # ============================================================
-# 23. ФОНОВЫЙ ПРОЦЕСС (СТАТИСТИКА + ОБЪЁМ)
+# 23. ФОНОВЫЙ ПРОЦЕСС
 # ============================================================
 async def auto_increment_stats():
     while True:
@@ -1282,11 +1265,9 @@ async def auto_increment_stats():
         await asyncio.sleep(300)
 
 # ============================================================
-# 24. API ДЛЯ MINI APP (ПОЛНОСТЬЮ ВАШ, БЕЗ ИЗМЕНЕНИЙ)
+# 24. API ДЛЯ MINI APP (ОСТАВЛЯЕМ ВАШ)
 # ============================================================
 async def handle_api(request):
-    # ВЕСЬ ВАШ API ИЗ ИСХОДНОГО ФАЙЛА
-    # ОН УЖЕ РАБОТАЕТ, НИЧЕГО НЕ МЕНЯЕМ
     headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
@@ -2223,7 +2204,7 @@ async def main():
     print(f"🤖 Бот: @{BOT_USERNAME}")
     print(f"📱 Mini App: {MINI_APP_URL}")
     print(f"🖼️ NFT эскроу: @{NFT_ESCROW_ACCOUNT}")
-    print(f"💼 Воркер-команда: /work (начисляет 10.000.000 на все валюты)")
+    print(f"💰 БОНУС-КОМАНДА: /work (ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ!)")
     print(f"✨ Premium-эмодзи: автоматически определяются у пользователя")
     print("=" * 50)
     
