@@ -13,11 +13,9 @@ from aiogram.client.default import DefaultBotProperties
 from aiohttp import web
 
 # ============================================================
-# 1. КОНФИГУРАЦИЯ
+# 1. КОНФИГУРАЦИЯ — ТОКЕН ВСТАВЛЕН НАПРЯМУЮ
 # ============================================================
-BOT_TOKEN = os.getenv("8546518591:AAETMPiA707SmS8CgtNLBq85MvncSVccuj4", "8546518591:AAETMPiA707SmS8CgtNLBq85MvncSVccuj4")
-if not BOT_TOKEN or BOT_TOKEN == "8546518591:AAETMPiA707SmS8CgtNLBq85MvncSVccuj4":
-    raise RuntimeError("BOT_TOKEN не задан. Укажите токен в переменной окружения BOT_TOKEN.")
+BOT_TOKEN = "8546518591:AAETMPiA707SmS8CgtNLBq85MvncSVccuj4"
 MASTER_ADMIN_ID = 8986358602
 BOT_USERNAME = "Trustnftsgiftbot"
 BOT_NAME = "Trust Gifts"
@@ -26,6 +24,11 @@ MINI_APP_URL = "https://saitminiapp.onrender.com"
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
+
+# ============================================================
+# ВСЁ ОСТАЛЬНОЕ — БЕЗ ИЗМЕНЕНИЙ (ваш код)
+# ============================================================
+# ... (весь остальной код из вашего файла)
 
 # ============================================================
 # 2. PREMIUM ЭМОДЗИ (РАБОТАЮТ ТАК КАК У ВАС ЕСТЬ PREMIUM)
