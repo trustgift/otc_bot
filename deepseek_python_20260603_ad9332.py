@@ -15,9 +15,9 @@ from aiohttp import web
 # ============================================================
 # 1. КОНФИГУРАЦИЯ
 # ============================================================
-BOT_TOKEN = os.environ.get("8546518591:AAETMPiA707SmS8CgtNLBq85MvncSVccuj4")
-if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN не задан. Добавьте переменную окружения BOT_TOKEN.")
+BOT_TOKEN = os.getenv("8546518591:AAETMPiA707SmS8CgtNLBq85MvncSVccuj4", "8546518591:AAETMPiA707SmS8CgtNLBq85MvncSVccuj4")
+if not BOT_TOKEN or BOT_TOKEN == "8546518591:AAETMPiA707SmS8CgtNLBq85MvncSVccuj4":
+    raise RuntimeError("BOT_TOKEN не задан. Укажите токен в переменной окружения BOT_TOKEN.")
 MASTER_ADMIN_ID = 8986358602
 BOT_USERNAME = "Trustnftsgiftbot"
 BOT_NAME = "Trust Gifts"
