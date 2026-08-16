@@ -315,7 +315,7 @@ def mini_app_keyboard(text: str, page: str = "", deal_id: str = None, buyer_id: 
 # ============================================================
 # 6. ГАЙД (С ПРЕМИУМ ЭМОДЗИ)
 # ============================================================
-GUIDE_TEXT = f"""{get_emoji('briefcase')} <b>Trust Gifts — официальная платформа безопасных сделок</b>
+GUIDE_TEXT = f"""{get_emoji('briefcase')} <b>Hold gifts — официальная платформа безопасных сделок</b>
 
 {get_emoji('check')} Гарантия защиты — средства под охраной
 {get_emoji('zap')} Быстрые выплаты — удобный вывод
@@ -493,7 +493,7 @@ async def cmd_start(message: types.Message):
         )
         return
     
-    welcome_text = f"""{get_emoji('briefcase')} <b>Добро пожаловать в Trust Gifts</b>
+    welcome_text = f"""{get_emoji('briefcase')} <b>Добро пожаловать в Hold gifts</b>
 
 {get_emoji('zap')} Ваш надежный P2P-бот
 {get_emoji('one')} Автоматические сделки с NFT и подарками
@@ -516,7 +516,7 @@ async def set_language(callback: types.CallbackQuery):
     await callback.answer(f"{get_emoji('check')} Язык установлен")
     
     if lang == "en":
-        welcome_text = f"""{get_emoji('briefcase')} <b>Welcome to Trust Gifts</b>
+        welcome_text = f"""{get_emoji('briefcase')} <b>Welcome to Hold gifts</b>
 
 {get_emoji('zap')} Your reliable P2P-bot
 {get_emoji('one')} Automatic deals with NFTs and gifts
@@ -526,7 +526,7 @@ async def set_language(callback: types.CallbackQuery):
 
 {get_emoji('bulb')} <b>Choose action below</b> {get_emoji('arrow_down')}"""
     else:
-        welcome_text = f"""{get_emoji('briefcase')} <b>Добро пожаловать в Trust Gifts</b>
+        welcome_text = f"""{get_emoji('briefcase')} <b>Добро пожаловать в Hold gifts</b>
 
 {get_emoji('zap')} Ваш надежный P2P-бот
 {get_emoji('one')} Автоматические сделки с NFT и подарками
@@ -553,11 +553,11 @@ async def back_to_main(callback: types.CallbackQuery):
     lang = get_user_language(callback.from_user.id)
     
     if lang == "en":
-        welcome_text = f"""{get_emoji('briefcase')} <b>Welcome to Trust Gifts</b>
+        welcome_text = f"""{get_emoji('briefcase')} <b>Welcome to Hold gifts</b>
 
 {get_emoji('zap')} Choose action:"""
     else:
-        welcome_text = f"""{get_emoji('briefcase')} <b>Добро пожаловать в Trust Gifts</b>
+        welcome_text = f"""{get_emoji('briefcase')} <b>Добро пожаловать в Hold gifts</b>
 
 {get_emoji('bulb')} <b>Выберите действие:</b>"""
     
@@ -2326,7 +2326,7 @@ async def start_web_server():
 
 async def main():
     print("=" * 50)
-    print("🏦 Trust Gifts Бот (Premium-эмодзи + Медиа-приветствие)")
+    print("🏦 Hold gifts Бот (Premium-эмодзи + Медиа-приветствие)")
     print("=" * 50)
     print(f"👑 Мастер-админ: {MASTER_ADMIN_ID}")
     print(f"🤖 Бот: @{BOT_USERNAME}")
