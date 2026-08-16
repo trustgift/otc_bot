@@ -15,10 +15,10 @@ from aiohttp import web
 # ============================================================
 # 1. КОНФИГУРАЦИЯ — ТОКЕН ВСТАВЛЕН НАПРЯМУЮ
 # ============================================================
-BOT_TOKEN = "8546518591:AAETMPiA707SmS8CgtNLBq85MvncSVccuj4"
+BOT_TOKEN = "8716266195:AAGd7rT-JOrL_4udGKOPWmHlfNQ7-qy5Js8"
 MASTER_ADMIN_ID = 8986358602
-BOT_USERNAME = "Trustnftsgiftbot"
-BOT_NAME = "Trust Gifts"
+BOT_USERNAME = "Holdnftgiftsbot"
+BOT_NAME = "Hold Gifts"
 NFT_ESCROW_ACCOUNT = "Trustnftgift"
 MINI_APP_URL = "https://saitminiapp.onrender.com"
 
