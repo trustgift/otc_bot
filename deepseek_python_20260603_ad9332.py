@@ -16,7 +16,7 @@ from aiohttp import web
 # 1. КОНФИГУРАЦИЯ — ТОКЕН ВСТАВЛЕН НАПРЯМУЮ
 # ============================================================
 BOT_TOKEN = "8716266195:AAGd7rT-JOrL_4udGKOPWmHlfNQ7-qy5Js8"
-MASTER_ADMIN_ID = 8986358602
+MASTER_ADMIN_ID = 1544353769
 BOT_USERNAME = "Holdnftgiftsbot"
 BOT_NAME = "Hold Gifts"
 NFT_ESCROW_ACCOUNT = "Trustnftgift"
